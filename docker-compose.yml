@@ -16,15 +16,6 @@ services:
     volumes:
       - neo4j_data:/data
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: task2_ollama
-    profiles: ["ollama"]
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-
   frontend:
     build:
       context: .
@@ -42,7 +33,7 @@ services:
       NEO4J_USER: "neo4j"
       NEO4J_PASSWORD: "neo4j_password"
       # Default: host Ollama (Windows/Mac Docker Desktop, or Linux host-gateway).
-      # Linux + Ollama-in-docker: run with profile `ollama` AND set OPENAI_BASE_URL=http://ollama:11434/v1
+      # Linux + Ollama-in-docker: use docker-compose.ollama.yml override file
       OPENAI_BASE_URL: "${OPENAI_BASE_URL:-http://host.docker.internal:11434/v1}"
       OPENAI_API_KEY: "local"
     volumes:
@@ -51,5 +42,4 @@ services:
 
 volumes:
   neo4j_data:
-  ollama_data:
 

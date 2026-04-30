@@ -137,10 +137,10 @@ Frontend will use `OPENAI_BASE_URL=http://host.docker.internal:11434/v1`.
 
 #### Mode B: Ollama in Docker (recommended for Linux)
 
-Start with profile and point frontend to the ollama service:
+Start with override compose file (works with both `docker compose` and legacy `docker-compose`):
 
 ```bash
-OPENAI_BASE_URL=http://ollama:11434/v1 docker compose --profile ollama up -d --build
+docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
 ```
 
 Pull models (inside container):

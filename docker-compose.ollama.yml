@@ -1,0 +1,18 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: task2_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  frontend:
+    depends_on:
+      - ollama
+    environment:
+      OPENAI_BASE_URL: "http://ollama:11434/v1"
+
+volumes:
+  ollama_data:
+
