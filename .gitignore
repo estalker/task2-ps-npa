@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.python-version
+
+# Local data / artifacts
+input/
+output/
+debug_extracted.txt
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Cursor / local tooling
+.cursor/
+terminals/
+agent-transcripts/
+

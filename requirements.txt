@@ -1,0 +1,8 @@
+neo4j>=5.20.0
+python-docx>=1.1.2
+mammoth>=1.8.0
+ftfy>=6.2.0
+pydantic>=2.7.0
+openai>=1.40.0
+tqdm>=4.66.0
+
