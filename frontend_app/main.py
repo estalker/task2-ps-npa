@@ -6,12 +6,16 @@ import os
 import re
 import shutil
 import subprocess
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
-from neo4j import GraphDatabase
+from collections.abc import Callable
+
+from neo4j import Driver, GraphDatabase
+
+from app.neo4j_stage_reset import reset_matching_layer, reset_npa_subgraph, reset_profstandard_subgraph
 from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.responses import StreamingResponse
@@ -108,7 +112,7 @@ INDEX_HTML = """<!doctype html>
 
       <div style="border-top:1px solid #e2e8f0; margin-top:12px; padding-top:12px;">
         <h2 style="font-size:15px;">Этап 1 — ПС → Neo4j</h2>
-        <p class="muted" style="margin:6px 0 8px;">Загрузка профстандартов из <span class="mono">input/ps</span> в граф: извлечение фрагментов и (опционально) структура через нейросеть.</p>
+        <p class="muted" style="margin:6px 0 8px;">Перед запуском в Neo4j сбрасываются только данные ПС (не трогаем НПА). Очищается <span class="mono">output/list_mandatory_ps.md</span>. Загрузка из <span class="mono">input/ps</span>, опционально — нейросеть.</p>
         <div class="row">
           <label class="muted" style="display:flex; gap:8px; align-items:center;">
             <input type="checkbox" id="psLlmUse" /> Нейросеть для ПС
@@ -124,7 +128,7 @@ INDEX_HTML = """<!doctype html>
 
       <div style="border-top:1px solid #e2e8f0; margin-top:12px; padding-top:12px;">
         <h2 style="font-size:15px;">Этап 2 — НПА → Neo4j</h2>
-        <p class="muted" style="margin:6px 0 8px;">Загрузка нормативных актов из <span class="mono">input/npa</span> в граф; нейросеть уточняет формулировки пунктов (виды работ, требования).</p>
+        <p class="muted" style="margin:6px 0 8px;">Перед запуском сбрасываются только данные НПА в Neo4j (ПС не трогаем). Снова очищается <span class="mono">list_mandatory_ps.md</span>. Загрузка из <span class="mono">input/npa</span>, опционально — нейросеть.</p>
         <div class="row">
           <label class="muted" style="display:flex; gap:8px; align-items:center;">
             <input type="checkbox" id="npaLlmUse" /> Нейросеть для НПА
@@ -140,7 +144,7 @@ INDEX_HTML = """<!doctype html>
 
       <div style="border-top:1px solid #e2e8f0; margin-top:12px; padding-top:12px;">
         <h2 style="font-size:15px;">Этап 3 — Таблица</h2>
-        <p class="muted" style="margin:6px 0 8px;">Сопоставление ПС/НПА в графе и файл <span class="mono">output/list_mandatory_ps.md</span>. Нейросеть приводит текст пункта к виду «Профессии (должности) работников, осуществляющих …» и убирает хвост про допуск/образование/аттестацию.</p>
+        <p class="muted" style="margin:6px 0 8px;">Перед запуском сбрасывается слой сопоставления в Neo4j (ОТФ, роли, связи Norm↔ОТФ). Файл <span class="mono">list_mandatory_ps.md</span> удаляется, затем строится таблица заново. Опционально — нейросеть для формулировок в ячейках.</p>
         <div class="row">
           <label class="muted" style="display:flex; gap:8px; align-items:center;">
             <input type="checkbox" id="tableLlmUse" /> Нейросеть для таблицы
@@ -158,6 +162,7 @@ INDEX_HTML = """<!doctype html>
         <button id="btnStageAll" onclick="runStage('all')">Пройти все этапы</button>
         <button class="secondary" onclick="refreshResult()">Обновить таблицу</button>
         <button class="secondary" onclick="downloadCsv()">Скачать CSV</button>
+        <button class="secondary" onclick="downloadXlsx()">Скачать Excel</button>
       </div>
 
       <details style="margin-top: 10px;">
@@ -342,6 +347,10 @@ INDEX_HTML = """<!doctype html>
         window.location.href = '/api/result.csv';
       }
 
+      function downloadXlsx() {
+        window.location.href = '/api/result.xlsx';
+      }
+
       refreshLists().catch(console.error);
       refreshResult().catch(() => {});
       refreshHealth().catch(() => {});
@@ -426,6 +435,34 @@ def _rows_to_csv(header: list[str], rows: list[list[str]]) -> str:
     return buf.getvalue()
 
 
+def _rows_to_xlsx_bytes(header: list[str], rows: list[list[str]]) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Обязательные ПС"
+
+    if not header:
+        ws.append(["Нет таблицы в output/list_mandatory_ps.md"])
+    else:
+        ws.append(header)
+        for r in rows:
+            ws.append([_strip_html(c) for c in r])
+        bold = Font(bold=True)
+        wrap = Alignment(wrap_text=True, vertical="top")
+        for cell in ws[1]:
+            cell.font = bold
+            cell.alignment = wrap
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, max_col=len(header)):
+            for cell in row:
+                cell.alignment = wrap
+
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def _run_cmd(args: list[str], cwd: Path) -> tuple[int, str]:
     p = subprocess.run(
         args,
@@ -476,18 +513,30 @@ def _run_cmd_stream(args: list[str], cwd: Path):
     return rc
 
 
-def _reset_neo4j() -> None:
+def _neo4j_driver() -> Driver:
     uri = os.getenv("NEO4J_URI", "bolt://neo4j:7687").strip() or "bolt://neo4j:7687"
     user = os.getenv("NEO4J_USER", "neo4j").strip() or "neo4j"
     password = os.getenv("NEO4J_PASSWORD", "neo4j_password").strip() or "neo4j_password"
-    driver = GraphDatabase.driver(uri, auth=(user, password))
+    return GraphDatabase.driver(uri, auth=(user, password))
+
+
+def _neo4j_stage_reset(reset_fn: Callable[[Driver], None]) -> None:
+    drv = _neo4j_driver()
     try:
-        with driver.session(database=os.getenv("NEO4J_DATABASE", "neo4j")) as s:
-            # Keep constraints; just delete data.
-            res = s.run("MATCH (n) DETACH DELETE n")
-            res.consume()
+        reset_fn(drv)
     finally:
-        driver.close()
+        drv.close()
+
+
+def _reset_neo4j_full() -> None:
+    """Полная очистка графа (оставлено для ручного/отладочного использования)."""
+    db = os.getenv("NEO4J_DATABASE", "neo4j").strip() or "neo4j"
+    drv = _neo4j_driver()
+    try:
+        with drv.session(database=db) as s:
+            s.run("MATCH (n) DETACH DELETE n").consume()
+    finally:
+        drv.close()
 
 
 def _reset_result_artifacts() -> None:
@@ -526,34 +575,30 @@ def _ollama_is_reachable() -> tuple[bool, str]:
 
 
 def _neo4j_is_reachable() -> tuple[bool, str]:
-    uri = os.getenv("NEO4J_URI", "bolt://neo4j:7687").strip() or "bolt://neo4j:7687"
-    user = os.getenv("NEO4J_USER", "neo4j").strip() or "neo4j"
-    password = os.getenv("NEO4J_PASSWORD", "neo4j_password").strip() or "neo4j_password"
-    driver = GraphDatabase.driver(uri, auth=(user, password))
+    drv = _neo4j_driver()
     try:
-        with driver.session(database=os.getenv("NEO4J_DATABASE", "neo4j")) as s:
+        db = os.getenv("NEO4J_DATABASE", "neo4j").strip() or "neo4j"
+        with drv.session(database=db) as s:
             s.run("RETURN 1 AS ok").consume()
         return True, "ok"
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
     finally:
-        driver.close()
+        drv.close()
 
 
 def _neo4j_profstandard_count() -> int:
-    uri = os.getenv("NEO4J_URI", "bolt://neo4j:7687").strip() or "bolt://neo4j:7687"
-    user = os.getenv("NEO4J_USER", "neo4j").strip() or "neo4j"
-    password = os.getenv("NEO4J_PASSWORD", "neo4j_password").strip() or "neo4j_password"
-    driver = GraphDatabase.driver(uri, auth=(user, password))
+    drv = _neo4j_driver()
     try:
-        with driver.session(database=os.getenv("NEO4J_DATABASE", "neo4j")) as s:
+        db = os.getenv("NEO4J_DATABASE", "neo4j").strip() or "neo4j"
+        with drv.session(database=db) as s:
             rec = s.run(
                 "MATCH (d:Document {source: $src}) RETURN count(d) AS c",
                 src="profstandard",
             ).single()
             return int(rec["c"] or 0) if rec else 0
     finally:
-        driver.close()
+        drv.close()
 
 
 def _llm_subpayload(payload: dict, key: str) -> dict:
@@ -642,12 +687,12 @@ def _pipeline_chunks(payload: dict):
 
     if stage in ("ps", "all"):
         try:
-            _reset_neo4j()
+            _neo4j_stage_reset(reset_profstandard_subgraph)
             _reset_result_artifacts()
-            yield "[NEO4J] cleared graph (MATCH (n) DETACH DELETE n)\n\n"
+            yield "[NEO4J] сброс этапа 1: только ПС (profstandard, OTF/Role, связанные Profession/Qualification/Requirement)\n\n"
             yield "[OUTPUT] cleared output/list_mandatory_ps.md\n\n"
         except Exception as e:
-            yield f"[ERROR] Neo4j reset failed: {e}\n"
+            yield f"[ERROR] Neo4j reset (этап 1) failed: {e}\n"
             return
 
         ps_files = [p for p in PS_DIR.iterdir() if p.is_file()]
@@ -690,6 +735,15 @@ def _pipeline_chunks(payload: dict):
             yield "[ERROR] В Neo4j нет ПС (profstandard). Сначала выполните этап 1.\n"
             return
 
+        try:
+            _neo4j_stage_reset(reset_npa_subgraph)
+            _reset_result_artifacts()
+            yield "[NEO4J] сброс этапа 2: только НПА (Document npa, Norm, осиротевшие WorkScope/Requirement)\n\n"
+            yield "[OUTPUT] cleared output/list_mandatory_ps.md\n\n"
+        except Exception as e:
+            yield f"[ERROR] Neo4j reset (этап 2) failed: {e}\n"
+            return
+
         npa_files = [p for p in NPA_DIR.iterdir() if p.is_file()]
         if any(p.suffix.lower() == ".rtf" for p in npa_files):
             prev_m = _apply_openai_model_for_llm(use_npa, model_npa)
@@ -720,9 +774,15 @@ def _pipeline_chunks(payload: dict):
             return
 
     if stage in ("table", "all"):
-        if stage == "table":
-            _reset_result_artifacts()
-            yield "[OUTPUT] cleared output/list_mandatory_ps.md (перед экспортом)\n\n"
+        try:
+            _neo4j_stage_reset(reset_matching_layer)
+            yield "[NEO4J] сброс этапа 3: слой сопоставления (OTF, Role и их связи)\n\n"
+        except Exception as e:
+            yield f"[ERROR] Neo4j reset (этап 3) failed: {e}\n"
+            return
+
+        _reset_result_artifacts()
+        yield "[OUTPUT] cleared output/list_mandatory_ps.md (перед экспортом)\n\n"
 
         cmd = ["python", "-u", "scripts/build_matching_graph.py"]
         yield "\n[CMD] " + " ".join(cmd) + "\n"
@@ -872,5 +932,19 @@ def result_csv() -> Response:
         content=body,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": "attachment; filename=list_mandatory_ps.csv"},
+    )
+
+
+@app.get("/api/result.xlsx")
+def result_xlsx() -> Response:
+    if not RESULT_MD.exists():
+        raise HTTPException(status_code=404, detail="output/list_mandatory_ps.md not found")
+    md = RESULT_MD.read_text(encoding="utf-8", errors="replace")
+    header, rows = _parse_markdown_table(md)
+    body = _rows_to_xlsx_bytes(header, rows)
+    return Response(
+        content=body,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=list_mandatory_ps.xlsx"},
     )
 
