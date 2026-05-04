@@ -6,12 +6,14 @@ import re
 import sys
 from pathlib import Path
 
-from neo4j import GraphDatabase
-
-# scripts/ on sys.path — import app.* from repo root when run as python scripts/...
+# Repo root on sys.path before any `from app...` (works from /workspace when cwd is scripts/)
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+from neo4j import GraphDatabase
+
+from app.industry_cpa import industry_from_vpd_code
 
 
 def _get_env(name: str, default: str) -> str:
@@ -177,16 +179,6 @@ def _extract_ps_meta(ps_text: str) -> dict[str, str]:
         # Normalize month casing but keep original word
         order = f"от «{day}» {month} {year} г. № {num}"
 
-    # Вид профессиональной деятельности: use first found "Эксплуатационное и разведочное бурение..." line
-    # (Fallback to empty if not found)
-    # Limit to the current line to avoid capturing the subsequent "19.071 ..." blocks.
-    mscope = re.search(
-        r"(Эксплуатационное и разведочное бурение[^\r\n]{0,180})",
-        ps_text,
-        flags=re.IGNORECASE,
-    )
-    view_activity = mscope.group(1).strip() if mscope else ""
-
     return {
         # What we show in table as "Код ПС": prefer general info code; fallback to registration number.
         "code_ps": general_code or reg_number,
@@ -194,8 +186,142 @@ def _extract_ps_meta(ps_text: str) -> dict[str, str]:
         "reg_number": reg_number,
         "name_ps": name,
         "order_mintrud": order,
-        "view_activity": view_activity,
     }
+
+
+# Начало раздела I: не ловим одиночную строку «I» из списков (ОТФ A…I и т.п.).
+_SECTION_I_START = re.compile(
+    r"(?:^|\r?\n)\s*(?:"
+    r"I(?:[\.)]|\s+(?=ОБЩИЕ|Общие|общие))"
+    r"|1(?:[\.)]|\s+)(?=ОБЩИЕ|Общие|общие)"
+    r"|Раздел\s+I(?:[\.)]|\s+(?=ОБЩИЕ|Общие|общие))"
+    r")",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _slice_section_i(ps_text: str) -> str:
+    """Фрагмент текста ПС от строки с разделом I до начала II (не включая II)."""
+    t = ps_text or ""
+    m = _SECTION_I_START.search(t)
+    if not m:
+        return ""
+    start = m.start()
+    after = t[m.end() :]
+    m2 = re.search(r"(?:^|\r?\n)\s*II[\s.)]", after, re.IGNORECASE | re.MULTILINE)
+    if m2:
+        return t[start : m.end() + m2.start()]
+    return t[start : m.end() + 12000]
+
+
+_VPD_PATTERNS = (
+    # Таблицы из docx часто дают «... | Вид ... | 19.071 ...»
+    r"вид\s+профессиональн\w*\s+деятельности\s*[|:\-–]?\s*([^\n\r]{1,700})",
+    r"вид\s+профессиональн\w*\s+деятельности\s*\r?\n\s*([^\n\r]{1,700})",
+    # Сокращённо в шапках
+    r"вид\s+проф\.?\s*деятельности\s*[|:\-–]?\s*([^\n\r]{1,700})",
+)
+
+# Код NN.NNN на строке, ниже подпись (наименование вида проф. деятельности) — типичный docx Минтруда
+_VPD_CODE_THEN_CAPTION = re.compile(
+    r"(?P<code>\d{2}\.\d{3})\s*\r?\n\s*[\(（]?\s*наименование\s+вида\s+профессиональн\w*\s+деятельности",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _vpd_from_code_caption_block(block: str, m: re.Match[str]) -> tuple[str, str | None]:
+    code = (m.group("code") or "").strip()
+    before = block[max(0, m.start() - 3500) : m.start()]
+    lines = [x.strip() for x in before.splitlines() if x.strip()]
+    desc = ""
+    for ln in reversed(lines[-25:]):
+        if len(ln) < 12:
+            continue
+        if re.match(r"^(I\.|II\.|III\.|IV\.|V\.|VI\.|код|наименование|группа|уровень)\b", ln, re.I):
+            continue
+        if re.match(r"^\d{3,5}$", ln):
+            continue
+        if re.search(r"^\d+\.\d+\s+", ln):  # 3.1. ОТФ…
+            continue
+        desc = ln
+        break
+    # В ячейке «Вид…» код не показываем (пользователю нужен только текст).
+    raw = " ".join((desc or "").split())
+    if len(raw) > 800:
+        raw = raw[:800] + "..."
+    return (raw, code)
+
+
+def _parse_vpd_raw_from_block(block: str) -> tuple[str, str | None]:
+    raw = ""
+    for pat in _VPD_PATTERNS:
+        m = re.search(pat, block, re.IGNORECASE)
+        if m:
+            raw = (m.group(1) or "").strip()
+            break
+    if not raw:
+        m_cc = _VPD_CODE_THEN_CAPTION.search(block)
+        if m_cc:
+            return _vpd_from_code_caption_block(block, m_cc)
+        return "", None
+    low = raw.lower()
+    for sep in ("\nкод", "\nнаименование", "\nуровень", "\nпрофесси", "\nрегистрацион"):
+        j = low.find(sep)
+        if j > 8:
+            raw = raw[:j].strip()
+            low = raw.lower()
+    raw = " ".join(raw.split())
+    if len(raw) > 800:
+        raw = raw[:800] + "..."
+    mc = re.search(r"\b(\d{2}\.\d{3})\b", raw)
+    code = mc.group(1) if mc else None
+    # Убираем ведущий код NN.NNN из ячейки «Вид…»
+    raw_no_code = re.sub(r"^\s*\d{2}\.\d{3}\s*", "", raw).strip()
+    return (raw_no_code or raw, code)
+
+
+def _extract_vpd_field_section_i(ps_text: str) -> tuple[str, str | None]:
+    """
+    Из раздела I: значение поля «Вид профессиональной деятельности» (как в документе)
+    и код NN.NNN при наличии.
+
+    В docx порядок абзацев часто такой, что «Общие сведения» оказываются после десятков
+    страниц основного текста — не ограничиваемся первыми 50k символов. Срез I→II
+    иногда получается коротким ложным (оглавление «1. ОБЩИЕ … / II.») — такие срезы
+    не используем, если в них нет подписи «Вид…».
+    """
+    t = ps_text or ""
+    blocks: list[str] = []
+
+    # Сначала последние вхождения «I. Общие сведения» — первое часто оглавление, дальше — сам раздел
+    for m in reversed(list(re.finditer(r"(?:^|\r?\n)\s*I\.\s*Общие\s+сведения\s*", t, re.MULTILINE | re.IGNORECASE))):
+        blocks.append(t[m.start() : m.start() + 18000])
+        if len(blocks) >= 3:
+            break
+
+    m_os = re.search(r"ОБЩИЕ\s+СВЕДЕНИЯ", t, re.IGNORECASE)
+    if m_os:
+        blocks.append(t[m_os.start() : m_os.start() + 16000])
+
+    si = _slice_section_i(t)
+    if (si or "").strip() and len(si) >= 200 and "вид" in si.lower():
+        blocks.append(si)
+    elif (si or "").strip() and len(si) >= 800:
+        blocks.append(si)
+
+    blocks.append(t[:80000])
+    if len(t) > 80000:
+        blocks.append(t)
+
+    seen: set[str] = set()
+    for block in blocks:
+        if not (block or "").strip() or block in seen:
+            continue
+        seen.add(block)
+        raw, code = _parse_vpd_raw_from_block(block)
+        if raw:
+            return (raw, code)
+    return "—", None
 
 
 def _pick_best_profession(candidates: list[str]) -> str:
@@ -276,8 +402,23 @@ def main(argv: list[str] | None = None) -> int:
             out_lines: list[str] = []
             out_lines.append("# Список обязательных профессиональных стандартов (черновик под текущие данные)")
             out_lines.append("")
-            out_lines.append("| № | Наименование профессионального стандарта | Код ПС | Наименование профессии/должности (дочернего общества) | Нормативный правовой акт РФ (пункт) | Код ОТФ | Возможные наименования должностей/профессий | Вид профессиональной деятельности | Вид обязательности |")
-            out_lines.append("|---|---|---|---|---|---|---|---|---|")
+            col_gazprom = (
+                "Наименование профессии (должности) дочернего общества, организации и филиала ПАО «Газпром», "
+                "в отношении которой установлена обязательность применения профессиональных стандартов "
+                "(переформулирование нейросетью при включённом режиме)"
+            )
+            col_norm_raw = "Исходный фрагмент пункта НПА (без нейросети, для сравнения)"
+            hdr = (
+                f"| № п/п | Наименование профессионального стандарта | Код ПС | "
+                f"Наименование и реквизиты документа, утвердившего профессиональный стандарт | {col_gazprom} | {col_norm_raw} | "
+                "Нормативный правовой акт Российской Федерации, устанавливающий требования к квалификации работников "
+                "(пункт, часть, статья, раздел) | Код ОТФ | "
+                "Возможное наименование профессии (должности) в соответствии с профессиональным стандартом | "
+                "Вид профессиональной деятельности (из раздела I ПС) | "
+                "Отрасль профессиональной деятельности |"
+            )
+            out_lines.append(hdr)
+            out_lines.append("|" + "|".join(["---"] * 11) + "|")
 
             # Query per-PS best matching norm (first row), prefer norm 200 when exists
             cypher_best = """
@@ -386,9 +527,12 @@ def main(argv: list[str] | None = None) -> int:
                 name_ps_cell = clean_cell(ps_meta["name_ps"] or Path(ps.get("path") or "").stem)
                 code_ps_cell = clean_cell(doc_code or ps_meta["code_ps"])
                 order_cell_s = clean_cell(ps_meta["order_mintrud"])
-                view_activity_cell = clean_cell(ps_meta["view_activity"] or "—")
+                vpd_raw, vpd_code_i = _extract_vpd_field_section_i(ps_text)
+                view_activity_cell = clean_cell(vpd_raw) if vpd_raw and vpd_raw != "—" else "—"
+                industry_cell = industry_from_vpd_code(vpd_code_i)
 
-                applied_to_cell = (norm_text[:500] + ("..." if len(norm_text) > 500 else "")) if norm_text else "—"
+                applied_raw_cell = (norm_text[:500] + ("..." if len(norm_text) > 500 else "")) if norm_text else "—"
+                applied_to_cell = applied_raw_cell
                 if llm_budget > 0 and try_rephrase_fn and norm_text and norm_text != "—":
                     plain = " ".join(str(norm_text).split())
                     if len(plain) >= 40:
@@ -403,7 +547,13 @@ def main(argv: list[str] | None = None) -> int:
                 npa_cell = clean_cell(f"{npa_title} (пункт {norm_number})").strip() if npa_title or norm_number else "—"
                 otf_cell = clean_cell(", ".join(matched_otf_codes)) if matched_otf_codes else "—"
 
-                mandatory_cell = "обязателен" if (npa_title or norm_number) else "—"
+                approving_parts: list[str] = []
+                if order_cell_s:
+                    approving_parts.append(order_cell_s)
+                reg_n = clean_cell(ps_meta.get("reg_number") or "")
+                if reg_n:
+                    approving_parts.append(f"Регистрационный номер {reg_n}")
+                approving_doc_cell = "<br>".join(approving_parts) if approving_parts else "—"
 
                 # De-dup: same PS can be ingested from multiple files/representations.
                 key = (code_ps_cell or "").strip() or f"{name_ps_cell}::{order_cell_s}".strip()
@@ -415,7 +565,9 @@ def main(argv: list[str] | None = None) -> int:
                 seen.add(key)
 
                 out_lines.append(
-                    f"| {len(seen)} | {name_ps_cell} <br><small>{order_cell_s}</small> | {code_ps_cell} | {applied_to_cell} | {npa_cell} | {otf_cell} | {roles_cell} | {view_activity_cell} | {mandatory_cell} |"
+                    f"| {len(seen)} | {name_ps_cell} | {code_ps_cell} | {approving_doc_cell} | {applied_to_cell} | "
+                    f"{applied_raw_cell} | {npa_cell} | {otf_cell} | {roles_cell} | {view_activity_cell} | "
+                    f"{industry_cell} |"
                 )
 
         out_path = Path("output/list_mandatory_ps.md")

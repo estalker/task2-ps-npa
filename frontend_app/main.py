@@ -435,6 +435,52 @@ def _rows_to_csv(header: list[str], rows: list[list[str]]) -> str:
     return buf.getvalue()
 
 
+def _xlsx_visual_lines(text: str, col_width: float) -> int:
+    """Число визуальных строк с учётом явных \\n и переноса по ширине колонки (в усл. единицах Excel)."""
+    if not text:
+        return 1
+    chars_per_line = max(5, int((col_width or 10) * 0.92))
+    total = 0
+    for chunk in str(text).split("\n"):
+        chunk = chunk.strip() if chunk else ""
+        if not chunk:
+            total += 1
+            continue
+        total += max(1, (len(chunk) + chars_per_line - 1) // chars_per_line)
+    return max(total, 1)
+
+
+def _apply_xlsx_column_widths_and_row_heights(ws) -> None:
+    from openpyxl.utils import get_column_letter
+
+    if ws.max_row < 1 or ws.max_column < 1:
+        return
+
+    for col in range(1, ws.max_column + 1):
+        max_len = 0
+        for row in range(1, ws.max_row + 1):
+            val = ws.cell(row=row, column=col).value
+            s = str(val) if val is not None else ""
+            for line in s.split("\n"):
+                max_len = max(max_len, len(line))
+        # Ширина колонки в Excel: ~число символов стандартного шрифта
+        width = float(min(max(max_len + 2.2, 9.0), 70.0))
+        ws.column_dimensions[get_column_letter(col)].width = width
+
+    for row in range(1, ws.max_row + 1):
+        max_lines = 1
+        for col in range(1, ws.max_column + 1):
+            val = ws.cell(row=row, column=col).value
+            s = str(val) if val is not None else ""
+            cw = float(ws.column_dimensions[get_column_letter(col)].width or 10.0)
+            max_lines = max(max_lines, _xlsx_visual_lines(s, cw))
+        # Высота строки в пунктах (1 pt ≈ 1/72 дюйма)
+        height = min(10.0 + 13.8 * max_lines, 250.0)
+        if row == 1:
+            height = max(height, 26.0)
+        ws.row_dimensions[row].height = height
+
+
 def _rows_to_xlsx_bytes(header: list[str], rows: list[list[str]]) -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font
@@ -445,6 +491,8 @@ def _rows_to_xlsx_bytes(header: list[str], rows: list[list[str]]) -> bytes:
 
     if not header:
         ws.append(["Нет таблицы в output/list_mandatory_ps.md"])
+        ws.column_dimensions["A"].width = 72
+        ws.row_dimensions[1].height = 22
     else:
         ws.append(header)
         for r in rows:
@@ -457,6 +505,7 @@ def _rows_to_xlsx_bytes(header: list[str], rows: list[list[str]]) -> bytes:
         for row in ws.iter_rows(min_row=2, max_row=ws.max_row, max_col=len(header)):
             for cell in row:
                 cell.alignment = wrap
+        _apply_xlsx_column_widths_and_row_heights(ws)
 
     buf = BytesIO()
     wb.save(buf)
