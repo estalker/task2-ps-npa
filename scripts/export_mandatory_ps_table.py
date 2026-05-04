@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import argparse
 import os
 import re
+import sys
 from pathlib import Path
 
 from neo4j import GraphDatabase
+
+# scripts/ on sys.path — import app.* from repo root when run as python scripts/...
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 
 def _get_env(name: str, default: str) -> str:
@@ -12,33 +19,133 @@ def _get_env(name: str, default: str) -> str:
     return v.strip() if v else default
 
 
+_RANK_RE = re.compile(
+    r"^(?P<prefix>.+?)\s+"
+    r"(?P<rank>\d+)\s*"
+    r"(?:[-–‑]?\s*(?:го|й|й-го))?\s+"
+    r"разряд[а-я]*$",
+    flags=re.IGNORECASE,
+)
+
+
+def _compress_int_ranges(values: list[int]) -> str:
+    """
+    [1,2,3,5,7,8] -> "1-3, 5, 7-8"
+    """
+    if not values:
+        return ""
+    vals = sorted(set(values))
+    ranges: list[tuple[int, int]] = []
+    start = prev = vals[0]
+    for v in vals[1:]:
+        if v == prev + 1:
+            prev = v
+            continue
+        ranges.append((start, prev))
+        start = prev = v
+    ranges.append((start, prev))
+
+    parts: list[str] = []
+    for a, b in ranges:
+        parts.append(f"{a}-{b}" if a != b else str(a))
+    return ", ".join(parts)
+
+
+def _group_titles_by_rank(items: list[str]) -> list[str]:
+    """
+    Group items like:
+      "Помощник ... 1 разряда", "Помощник ... 2-го разряда" -> "Помощник ... 1-2 разряда"
+    Keeps non-matching items untouched and preserves first-seen order for grouped prefixes.
+    """
+    if not items:
+        return []
+
+    prefix_to_ranks: dict[str, list[int]] = {}
+    prefix_first_idx: dict[str, int] = {}
+
+    for i, raw in enumerate(items):
+        s = " ".join((raw or "").split())
+        if not s:
+            continue
+        m = _RANK_RE.match(s)
+        if not m:
+            continue
+        prefix = " ".join(m.group("prefix").split())
+        try:
+            rank = int(m.group("rank"))
+        except Exception:
+            continue
+        prefix_to_ranks.setdefault(prefix, []).append(rank)
+        prefix_first_idx.setdefault(prefix, i)
+
+    if not prefix_to_ranks:
+        return items
+
+    emitted: set[str] = set()
+    out: list[str] = []
+    for i, raw in enumerate(items):
+        s = " ".join((raw or "").split())
+        if not s:
+            continue
+        m = _RANK_RE.match(s)
+        if not m:
+            out.append(s)
+            continue
+
+        prefix = " ".join(m.group("prefix").split())
+        if prefix not in prefix_to_ranks:
+            out.append(s)
+            continue
+
+        # Emit only once, at first occurrence.
+        if prefix in emitted:
+            continue
+        if prefix_first_idx.get(prefix, i) != i:
+            continue
+
+        ranks = prefix_to_ranks.get(prefix) or []
+        compressed = _compress_int_ranges(ranks)
+        if compressed and ("," in compressed or "-" in compressed):
+            out.append(f"{prefix} {compressed} разряда")
+        else:
+            # Single rank: keep the original string (preserve wording like "6-го разряда")
+            out.append(s)
+        emitted.add(prefix)
+
+    return out
+
+
 def _extract_ps_meta(ps_text: str) -> dict[str, str]:
-    # Name + code from the title block (best-effort, different PS templates exist).
+    # Name + codes (best-effort, different PS templates exist).
+    # We track:
+    # - general_code: code from "Общие сведения" section (often like 19.071) — this is what user wants as "Код ПС"
+    # - reg_number: registration number (3-6 digits), often shown near the PS title
     marker = "ПРОФЕССИОНАЛЬНЫЙ СТАНДАРТ"
     idx = ps_text.find(marker)
-    code = ""
+    reg_number = ""
+    general_code = ""
     name = ""
     order = ""
     if idx != -1:
         after = ps_text[idx + len(marker) : idx + len(marker) + 800]
         mcode = re.search(r"\b(\d{3,6})\b", after)
         if mcode:
-            code = mcode.group(1)
+            reg_number = mcode.group(1)
             name = after[: mcode.start()].strip()
             # clean name from extra tokens/newlines
             name = " ".join(name.split())
 
     # Alternative: explicit "Регистрационный номер" lines
-    if not code:
+    if not reg_number:
         m = re.search(r"регистрационн\w*\s+номер\w*\s*[:\-]?\s*(\d{3,6})\b", ps_text, flags=re.IGNORECASE)
         if m:
-            code = m.group(1)
+            reg_number = m.group(1)
 
     # Alternative: "Рег. № 1426" / "№ 1426" near "профессиональный стандарт"
-    if not code:
+    if not reg_number:
         m = re.search(r"профессиональн\w*\s+стандарт[^\n]{0,200}?№\s*(\d{3,6})\b", ps_text, flags=re.IGNORECASE)
         if m:
-            code = m.group(1)
+            reg_number = m.group(1)
 
     if not name:
         # Try to capture a common variant: "Профессиональный стандарт <name>" in one line
@@ -48,6 +155,21 @@ def _extract_ps_meta(ps_text: str) -> dict[str, str]:
             # strip trailing numbers/sections
             cand = re.sub(r"\s+\d{3,6}\b.*$", "", cand).strip()
             name = cand
+
+    # General info code from "ОБЩИЕ СВЕДЕНИЯ" block (typical: 19.071)
+    mgeneral = None
+    mblock = re.search(r"ОБЩИЕ\s+СВЕДЕНИЯ(.{0,2000})", ps_text, flags=re.IGNORECASE | re.DOTALL)
+    if mblock:
+        block = mblock.group(1)
+        # Prefer explicit "Код" label
+        mgeneral = re.search(r"\bкод\b\s*[:\-]?\s*(\d{2}\.\d{3})\b", block, flags=re.IGNORECASE)
+        if not mgeneral:
+            mgeneral = re.search(r"\b(\d{2}\.\d{3})\b", block)
+    if not mgeneral:
+        # Fallback: anywhere in text (avoid grabbing numbers from unrelated lists by requiring dot format)
+        mgeneral = re.search(r"\b(\d{2}\.\d{3})\b", ps_text)
+    if mgeneral:
+        general_code = mgeneral.group(1)
 
     morder = re.search(r"от «(\d{1,2})»\s*([а-яё]+)\s*(\d{4}) г\.?\s*№\s*(\d+н|\d+)", ps_text, re.IGNORECASE)
     if morder:
@@ -66,7 +188,10 @@ def _extract_ps_meta(ps_text: str) -> dict[str, str]:
     view_activity = mscope.group(1).strip() if mscope else ""
 
     return {
-        "code_ps": code,
+        # What we show in table as "Код ПС": prefer general info code; fallback to registration number.
+        "code_ps": general_code or reg_number,
+        "code_ps_general": general_code,
+        "reg_number": reg_number,
         "name_ps": name,
         "order_mintrud": order,
         "view_activity": view_activity,
@@ -106,7 +231,22 @@ def _looks_like_ps(ps_text: str) -> bool:
     )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Export mandatory PS markdown table from Neo4j")
+    ap.add_argument(
+        "--rephrase-with-llm",
+        action="store_true",
+        help="Use LLM to rephrase norm snippets in the table (OPENAI_BASE_URL + OPENAI_MODEL)",
+    )
+    ap.add_argument("--llm-max-calls", type=int, default=50, help="Max LLM calls for rephrasing (safety)")
+    if argv is None:
+        argv = sys.argv[1:]
+    args = ap.parse_args(argv)
+
+    try_rephrase_fn = None
+    if args.rephrase_with_llm:
+        from app.table_llm_rephrase import try_rephrase_table_snippet as try_rephrase_fn
+
     # Query NPA in graph via "proper" matching edges Norm->OTF.
     neo4j_uri = _get_env("NEO4J_URI", "bolt://localhost:7687")
     neo4j_user = _get_env("NEO4J_USER", "neo4j")
@@ -116,6 +256,8 @@ def main() -> int:
     def clean_cell(v: object) -> str:
         return " ".join(str(v or "").split())
 
+    llm_budget = max(0, int(args.llm_max_calls)) if args.rephrase_with_llm and try_rephrase_fn else 0
+
     try:
         # Load all PS documents (multi-PS)
         with driver.session() as s:
@@ -123,7 +265,7 @@ def main() -> int:
                 s.run(
                     """
                     MATCH (ps:Document {source:'profstandard'})
-                    RETURN ps.id AS id, ps.path AS path, ps.raw_text AS raw_text
+                    RETURN ps.id AS id, ps.path AS path, ps.raw_text AS raw_text, ps.ps_general_code AS ps_general_code
                     ORDER BY ps.updated_at DESC
                     """
                 )
@@ -162,6 +304,8 @@ def main() -> int:
                 if not _looks_like_ps(ps_text):
                     continue
                 ps_meta = _extract_ps_meta(ps_text)
+                # Prefer LLM-extracted code stored on Document, if present
+                doc_code = ps.get("ps_general_code") if isinstance(ps, dict) else None
 
                 # Fallback: PS name from extracted professions in graph
                 if not (ps_meta.get("name_ps") or "").strip():
@@ -196,9 +340,6 @@ def main() -> int:
                     )
                     if r.get("code")
                 ]
-                if not all_otf_codes:
-                    # Skip documents that did not produce OTF codes (likely not a real PS, or extraction failed).
-                    continue
                 matched_otf_codes = sorted(set([str(x) for x in (otf_codes_m or []) if x])) or all_otf_codes
 
                 # Roles for matched OTFs (fallback to all roles for PS)
@@ -226,14 +367,39 @@ def main() -> int:
                     if rrec2 and rrec2.get("roles"):
                         role_names = [clean_cell(x) for x in (rrec2.get("roles") or []) if clean_cell(x)]
 
+                # If graph doesn't have OTF/Role layer (older or simplified pipeline),
+                # fallback to professions mentioned in the PS document.
+                if not role_names:
+                    profs = [
+                        clean_cell(r["name"])
+                        for r in s.run(
+                            "MATCH (p:Profession)-[:MENTIONED_IN]->(ps:Document {id:$ps_id}) RETURN DISTINCT p.name AS name ORDER BY name",
+                            ps_id=ps_id,
+                        )
+                        if r.get("name") and clean_cell(r.get("name"))
+                    ]
+                    role_names = profs
+
+                role_names = _group_titles_by_rank(role_names)
                 roles_cell = "<br>".join(role_names[:25]) + ("<br>..." if len(role_names) > 25 else "")
 
                 name_ps_cell = clean_cell(ps_meta["name_ps"] or Path(ps.get("path") or "").stem)
-                code_ps_cell = clean_cell(ps_meta["code_ps"])
+                code_ps_cell = clean_cell(doc_code or ps_meta["code_ps"])
                 order_cell_s = clean_cell(ps_meta["order_mintrud"])
                 view_activity_cell = clean_cell(ps_meta["view_activity"] or "—")
 
                 applied_to_cell = (norm_text[:500] + ("..." if len(norm_text) > 500 else "")) if norm_text else "—"
+                if llm_budget > 0 and try_rephrase_fn and norm_text and norm_text != "—":
+                    plain = " ".join(str(norm_text).split())
+                    if len(plain) >= 40:
+                        try:
+                            r = try_rephrase_fn(plain)
+                            if r:
+                                applied_to_cell = r
+                                llm_budget -= 1
+                        except Exception:
+                            pass
+
                 npa_cell = clean_cell(f"{npa_title} (пункт {norm_number})").strip() if npa_title or norm_number else "—"
                 otf_cell = clean_cell(", ".join(matched_otf_codes)) if matched_otf_codes else "—"
 

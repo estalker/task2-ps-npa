@@ -35,10 +35,15 @@ UNWIND extractions AS ex
 WITH d,
      ex.profession AS profession,
      ex.qualification AS qualification,
+     ex.ps_general_code AS ps_general_code,
      ex.education AS education,
      ex.education_hash AS education_hash,
      ex.experience_hash AS experience_hash,
      ex.experience AS experience
+
+FOREACH (_ IN CASE WHEN ps_general_code IS NULL THEN [] ELSE [1] END |
+  SET d.ps_general_code = ps_general_code
+)
 
 FOREACH (_ IN CASE WHEN profession IS NULL THEN [] ELSE [1] END |
   MERGE (p:Profession {name: profession})
@@ -121,6 +126,7 @@ def upsert_document(
                 {
                     "profession": e.profession,
                     "qualification": e.qualification,
+                    "ps_general_code": e.ps_general_code,
                     "education": e.education,
                     "experience": e.experience,
                     "education_hash": (
@@ -146,6 +152,7 @@ def upsert_document(
                     {
                         "profession": None,
                         "qualification": None,
+                        "ps_general_code": None,
                         "education": None,
                         "experience": None,
                         "education_hash": None,

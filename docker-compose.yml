@@ -34,11 +34,13 @@ services:
       NEO4J_PASSWORD: "neo4j_password"
       # Default: host Ollama (Windows/Mac Docker Desktop, or Linux host-gateway).
       # Linux + Ollama-in-docker: use docker-compose.ollama.yml override file
-      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-http://host.docker.internal:11434/v1}"
+      # Important: don't use localhost here (inside container it points to itself).
+      OPENAI_BASE_URL: "http://host.docker.internal:11434/v1"
       OPENAI_API_KEY: "local"
     volumes:
       - ./input:/workspace/input
       - ./output:/workspace/output
+      - ./frontend_app:/workspace/frontend_app
 
 volumes:
   neo4j_data:
