@@ -33,6 +33,31 @@ PROMPT = """Ты редактор служебной таблицы. Дан те
 <<<{TEXT}>>>
 """
 
+_PREFIX = "Профессии (должности) работников, осуществляющих"
+
+
+def _normalize_prefix(s: str) -> str:
+    s = " ".join((s or "").split()).strip()
+    if not s:
+        return s
+
+    low = s.lower()
+    pref_low = _PREFIX.lower()
+    if low.startswith(pref_low):
+        return s
+
+    # If model started with близким заголовком, нормализуем его к требуемому виду.
+    head = "Профессии (должности) работников,"
+    if low.startswith(head.lower()):
+        tail = s.split(",", 1)[1].strip() if "," in s else ""
+        if tail.lower().startswith("осуществляющих"):
+            return f"{head} {tail}"
+        if tail:
+            return f"{_PREFIX} {tail}"
+        return _PREFIX
+
+    return f"{_PREFIX} {s}"
+
 
 def _extract_first_json_object(s: str) -> str:
     s = s.strip()
@@ -111,4 +136,5 @@ def try_rephrase_table_snippet(text: str, *, max_in: int = 6000) -> str | None:
     out = " ".join(out.split()).strip()
     if not out:
         return None
+    out = _normalize_prefix(out)
     return out[:2000]

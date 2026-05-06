@@ -5,24 +5,22 @@ import html
 import hashlib
 import os
 import re
-import shutil
 import subprocess
+from collections.abc import Callable
 from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
-from collections.abc import Callable
-
 from neo4j import Driver, GraphDatabase
 
 from app.neo4j_stage_reset import reset_matching_layer, reset_npa_subgraph, reset_profstandard_subgraph
 from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import HTMLResponse, PlainTextResponse, Response
-from fastapi.responses import StreamingResponse
-
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 KIND = Literal["ps", "npa"]
+PROJ_KIND = Literal["ps", "npa", "match"]
 
 WORKSPACE = Path(os.getenv("WORKSPACE_DIR", "/workspace")).resolve()
 INPUT_DIR = (WORKSPACE / "input").resolve()
@@ -36,401 +34,19 @@ RESULT_MD = OUTPUT_DIR / "list_mandatory_ps.md"
 COL_REPHRASED_HINT = "переформулирован"
 COL_RAW_HINT = "исходный фрагмент"
 
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+INDEX_HTML_PATH = STATIC_DIR / "index.html"
 
 app = FastAPI(title="Task2 Frontend")
 
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-INDEX_HTML = """<!doctype html>
-<html lang="ru">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Task2 — ПС / НПА</title>
-    <style>
-      :root { color-scheme: light; }
-      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; color: #0f172a; }
-      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-      @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
-      .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; background: #fff; }
-      h1 { font-size: 18px; margin: 0 0 12px; }
-      h2 { font-size: 14px; margin: 0 0 8px; color: #334155; }
-      .row { display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
-      button { border: 1px solid #cbd5e1; background: #0b1220; color: #fff; padding: 8px 12px; border-radius: 10px; cursor: pointer; }
-      button.secondary { background: #fff; color: #0b1220; }
-      button.danger { background: #b91c1c; border-color: #b91c1c; }
-      button:disabled { opacity: .5; cursor: not-allowed; }
-      input[type=file] { border: 1px dashed #cbd5e1; padding: 10px; border-radius: 10px; }
-      .muted { color: #64748b; font-size: 12px; }
-      ul { margin: 10px 0 0; padding-left: 18px; }
-      li { margin: 6px 0; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; white-space: pre-wrap; }
-      table { border-collapse: collapse; width: 100%; }
-      th, td { border: 1px solid #e2e8f0; padding: 8px; vertical-align: top; }
-      th { background: #f8fafc; text-align: left; position: sticky; top: 0; }
-      .tableWrap { max-height: 55vh; overflow: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
-      .toolbar { display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
-      .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; background:#f1f5f9; border:1px solid #e2e8f0; font-size: 12px; }
-      .statusBar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
-      .lights { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-      .light { width:10px; height:10px; border-radius:999px; display:inline-block; border:1px solid rgba(15,23,42,.25); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
-      .light.ok { background:#22c55e; }
-      .light.bad { background:#ef4444; }
-      .light.unk { background:#94a3b8; }
-      .lightLabel { display:flex; gap:6px; align-items:center; font-size:12px; color:#334155; }
-    </style>
-  </head>
-  <body>
-    <div class="row" style="justify-content: space-between;">
-      <h1>Task2 — менеджер файлов ПС/НПА + таблица</h1>
-      <div class="statusBar">
-        <div class="lights" id="lights"></div>
-        <span class="pill" id="status">idle</span>
-      </div>
-    </div>
 
-    <div class="grid">
-      <div class="card">
-        <h2>1) ПС (docx/rtf)</h2>
-        <div class="row">
-          <input id="psFiles" type="file" multiple accept=".docx,.rtf" />
-          <button class="secondary" onclick="upload('ps')">Загрузить</button>
-          <span class="muted">Сохраняется в <span class="mono">input/ps</span></span>
-        </div>
-        <ul id="psList" class="mono"></ul>
-      </div>
-
-      <div class="card">
-        <h2>2) НПА (docx/rtf)</h2>
-        <div class="row">
-          <input id="npaFiles" type="file" multiple accept=".docx,.rtf" />
-          <button class="secondary" onclick="upload('npa')">Загрузить</button>
-          <span class="muted">Сохраняется в <span class="mono">input/npa</span></span>
-        </div>
-        <ul id="npaList" class="mono"></ul>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top: 16px;">
-      <h2>Этапы пайплайна</h2>
-      <p class="muted" style="margin-top:0;">Для каждого этапа можно выбрать свою модель Ollama (через <span class="mono">OPENAI_BASE_URL</span> / <span class="mono">OPENAI_MODEL</span> в контейнере).</p>
-
-      <div style="border-top:1px solid #e2e8f0; margin-top:12px; padding-top:12px;">
-        <h2 style="font-size:15px;">Этап 1 — ПС → Neo4j</h2>
-        <p class="muted" style="margin:6px 0 8px;">Перед запуском в Neo4j сбрасываются только данные ПС (не трогаем НПА). Очищается <span class="mono">output/list_mandatory_ps.md</span>. Загрузка из <span class="mono">input/ps</span>, опционально — нейросеть.</p>
-        <div class="row">
-          <label class="muted" style="display:flex; gap:8px; align-items:center;">
-            <input type="checkbox" id="psResetDb" checked /> Очистить данные ПС перед загрузкой
-          </label>
-          <label class="muted" style="display:flex; gap:8px; align-items:center;">
-            <input type="checkbox" id="psLlmUse" /> Нейросеть для ПС
-          </label>
-          <span class="muted">Модель:</span>
-          <select id="psLlmModel" style="border:1px solid #cbd5e1; padding:8px 10px; border-radius:10px;">
-            <option value="qwen2.5:3b-instruct">qwen2.5:3b-instruct</option>
-            <option value="qwen2.5:7b-instruct">qwen2.5:7b-instruct</option>
-          </select>
-          <button id="btnStagePs" onclick="runStage('ps')">Запустить этап 1</button>
-        </div>
-      </div>
-
-      <div style="border-top:1px solid #e2e8f0; margin-top:12px; padding-top:12px;">
-        <h2 style="font-size:15px;">Этап 2 — НПА → Neo4j</h2>
-        <p class="muted" style="margin:6px 0 8px;">Перед запуском сбрасываются только данные НПА в Neo4j (ПС не трогаем). Снова очищается <span class="mono">list_mandatory_ps.md</span>. Загрузка из <span class="mono">input/npa</span>, опционально — нейросеть.</p>
-        <div class="row">
-          <label class="muted" style="display:flex; gap:8px; align-items:center;">
-            <input type="checkbox" id="npaResetDb" checked /> Очистить данные НПА перед загрузкой
-          </label>
-          <label class="muted" style="display:flex; gap:8px; align-items:center;">
-            <input type="checkbox" id="npaLlmUse" /> Нейросеть для НПА
-          </label>
-          <span class="muted">Модель:</span>
-          <select id="npaLlmModel" style="border:1px solid #cbd5e1; padding:8px 10px; border-radius:10px;">
-            <option value="qwen2.5:3b-instruct">qwen2.5:3b-instruct</option>
-            <option value="qwen2.5:7b-instruct">qwen2.5:7b-instruct</option>
-          </select>
-          <button id="btnStageNpa" onclick="runStage('npa')">Запустить этап 2</button>
-        </div>
-      </div>
-
-      <div style="border-top:1px solid #e2e8f0; margin-top:12px; padding-top:12px;">
-        <h2 style="font-size:15px;">Этап 3 — Таблица</h2>
-        <p class="muted" style="margin:6px 0 8px;">Перед запуском сбрасывается слой сопоставления в Neo4j (ОТФ, роли, связи Norm↔ОТФ). Файл <span class="mono">list_mandatory_ps.md</span> удаляется, затем строится таблица заново. Опционально — нейросеть для формулировок в ячейках.</p>
-        <div class="row">
-          <label class="muted" style="display:flex; gap:8px; align-items:center;">
-            <input type="checkbox" id="tableLlmUse" /> Нейросеть для таблицы
-          </label>
-          <span class="muted">Модель:</span>
-          <select id="tableLlmModel" style="border:1px solid #cbd5e1; padding:8px 10px; border-radius:10px;">
-            <option value="qwen2.5:3b-instruct">qwen2.5:3b-instruct</option>
-            <option value="qwen2.5:7b-instruct">qwen2.5:7b-instruct</option>
-          </select>
-          <button id="btnStageTable" onclick="runStage('table')">Сформировать таблицу</button>
-        </div>
-      </div>
-
-      <div class="toolbar" style="margin-top: 14px; border-top:1px solid #e2e8f0; padding-top:12px;">
-        <button id="btnStageAll" onclick="runStage('all')">Пройти все этапы</button>
-        <button class="secondary" onclick="refreshResult()">Обновить таблицу</button>
-        <button class="secondary" onclick="downloadCsv()">Скачать CSV</button>
-        <button class="secondary" onclick="downloadXlsx()">Скачать Excel</button>
-      </div>
-
-      <details style="margin-top: 10px;">
-        <summary>Лог последнего запуска</summary>
-        <pre class="mono" id="log" style="margin-top: 10px; background:#0b1220; color:#e2e8f0; padding: 12px; border-radius: 12px; overflow:auto; max-height: 30vh;"></pre>
-      </details>
-    </div>
-
-    <div class="card" style="margin-top: 16px;">
-      <h2>Результат (HTML таблица из markdown)</h2>
-      <div class="tableWrap" id="tableWrap"></div>
-    </div>
-
-    <script>
-      const statusEl = document.getElementById('status');
-      const logEl = document.getElementById('log');
-      const lightsEl = document.getElementById('lights');
-      const stageBtnIds = ['btnStagePs', 'btnStageNpa', 'btnStageTable', 'btnStageAll'];
-
-      function setStatus(s) { statusEl.textContent = s; }
-      function setRunning(r) {
-        for (const id of stageBtnIds) {
-          const b = document.getElementById(id);
-          if (b) b.disabled = r;
-        }
-        setStatus(r ? 'running' : 'idle');
-      }
-
-      function llmPayload() {
-        return {
-          ps: { use_llm: !!document.getElementById('psLlmUse').checked, model: document.getElementById('psLlmModel').value || null },
-          npa: { use_llm: !!document.getElementById('npaLlmUse').checked, model: document.getElementById('npaLlmModel').value || null },
-          table: { use_llm: !!document.getElementById('tableLlmUse').checked, model: document.getElementById('tableLlmModel').value || null },
-        };
-      }
-
-      function resetPayload() {
-        return {
-          ps: { reset_db: !!document.getElementById('psResetDb').checked },
-          npa: { reset_db: !!document.getElementById('npaResetDb').checked },
-          table: { reset_db: true }, // stage 3 always rebuilds matching layer / result
-        };
-      }
-
-      function persistLlmUi() {
-        const p = llmPayload();
-        try {
-          localStorage.setItem('task2_llm_ps', JSON.stringify(p.ps));
-          localStorage.setItem('task2_llm_npa', JSON.stringify(p.npa));
-          localStorage.setItem('task2_llm_table', JSON.stringify(p.table));
-        } catch (_) {}
-      }
-
-      function persistResetUi() {
-        const p = resetPayload();
-        try {
-          localStorage.setItem('task2_reset_ps', JSON.stringify(p.ps));
-          localStorage.setItem('task2_reset_npa', JSON.stringify(p.npa));
-        } catch (_) {}
-      }
-
-      function restoreLlmUi() {
-        try {
-          for (const [key, useId, modelId] of [
-            ['task2_llm_ps', 'psLlmUse', 'psLlmModel'],
-            ['task2_llm_npa', 'npaLlmUse', 'npaLlmModel'],
-            ['task2_llm_table', 'tableLlmUse', 'tableLlmModel'],
-          ]) {
-            const raw = localStorage.getItem(key);
-            if (!raw) continue;
-            const o = JSON.parse(raw);
-            if (o && typeof o === 'object') {
-              document.getElementById(useId).checked = !!o.use_llm;
-              if (o.model) document.getElementById(modelId).value = o.model;
-            }
-          }
-        } catch (_) {}
-      }
-
-      function restoreResetUi() {
-        try {
-          for (const [key, id, defaultVal] of [
-            ['task2_reset_ps', 'psResetDb', true],
-            ['task2_reset_npa', 'npaResetDb', true],
-          ]) {
-            const el = document.getElementById(id);
-            if (!el) continue;
-            el.checked = defaultVal;
-            const raw = localStorage.getItem(key);
-            if (!raw) continue;
-            const o = JSON.parse(raw);
-            if (o && typeof o === 'object' && o.reset_db !== undefined) {
-              el.checked = !!o.reset_db;
-            }
-          }
-        } catch (_) {}
-      }
-
-      async function apiJson(url, opts) {
-        const r = await fetch(url, opts);
-        if (!r.ok) throw new Error(await r.text());
-        return await r.json();
-      }
-
-      function renderLights(health) {
-        const items = [
-          { label: 'UI', data: health.frontend },
-          { label: 'Neo4j', data: health.neo4j },
-          { label: 'LLM', data: health.ollama },
-        ];
-        lightsEl.innerHTML = '';
-        for (const it of items) {
-          const wrap = document.createElement('span');
-          wrap.className = 'lightLabel';
-          const dot = document.createElement('span');
-          dot.className = 'light ' + (it.data && it.data.ok === true ? 'ok' : (it.data && it.data.ok === false ? 'bad' : 'unk'));
-          dot.title = (it.data && it.data.detail) ? it.data.detail : 'unknown';
-          const txt = document.createElement('span');
-          txt.textContent = it.label;
-          wrap.appendChild(dot);
-          wrap.appendChild(txt);
-          lightsEl.appendChild(wrap);
-        }
-      }
-
-      async function refreshHealth() {
-        try {
-          const h = await apiJson('/api/health');
-          renderLights(h);
-        } catch (e) {
-          renderLights({ frontend: { ok: false, detail: String(e) }, neo4j: null, ollama: null });
-        }
-      }
-
-      async function refreshLists() {
-        const ps = await apiJson('/api/files?kind=ps');
-        const npa = await apiJson('/api/files?kind=npa');
-        renderList('psList', 'ps', ps.files);
-        renderList('npaList', 'npa', npa.files);
-      }
-
-      function renderList(elId, kind, files) {
-        const el = document.getElementById(elId);
-        el.innerHTML = '';
-        if (!files.length) {
-          const li = document.createElement('li');
-          li.textContent = '(пусто)';
-          el.appendChild(li);
-          return;
-        }
-        for (const f of files) {
-          const li = document.createElement('li');
-          const name = document.createElement('span');
-          name.textContent = f;
-          const del = document.createElement('button');
-          del.textContent = 'Удалить';
-          del.className = 'danger';
-          del.style.marginLeft = '10px';
-          del.onclick = async () => {
-            await fetch(`/api/files/${kind}/${encodeURIComponent(f)}`, { method: 'DELETE' });
-            await refreshLists();
-          };
-          li.appendChild(name);
-          li.appendChild(del);
-          el.appendChild(li);
-        }
-      }
-
-      async function upload(kind) {
-        const input = document.getElementById(kind === 'ps' ? 'psFiles' : 'npaFiles');
-        if (!input.files.length) return;
-        const fd = new FormData();
-        for (const f of input.files) fd.append('files', f);
-        await fetch(`/api/upload?kind=${kind}`, { method: 'POST', body: fd });
-        input.value = '';
-        await refreshLists();
-      }
-
-      async function runStage(stage) {
-        setRunning(true);
-        logEl.textContent = '';
-        try {
-          persistLlmUi();
-          persistResetUi();
-          // IMPORTANT: both llmPayload() and resetPayload() contain ps/npa/table objects.
-          // Shallow spreading would overwrite these nested objects and drop fields.
-          const llm = llmPayload();
-          const rst = resetPayload();
-          const payload = {
-            stage,
-            ps: { ...(llm.ps || {}), ...(rst.ps || {}) },
-            npa: { ...(llm.npa || {}), ...(rst.npa || {}) },
-            table: { ...(llm.table || {}), ...(rst.table || {}) },
-          };
-          const r = await fetch('/api/run.stream', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          if (!r.ok) throw new Error(await r.text());
-
-          const reader = r.body.getReader();
-          const decoder = new TextDecoder('utf-8');
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            if (value) {
-              logEl.textContent += decoder.decode(value, { stream: true });
-              logEl.scrollTop = logEl.scrollHeight;
-            }
-          }
-          await refreshResult();
-        } catch (e) {
-          logEl.textContent = String(e);
-        } finally {
-          setRunning(false);
-        }
-      }
-
-      async function refreshResult() {
-        const r = await fetch('/api/result.html');
-        const html = await r.text();
-        document.getElementById('tableWrap').innerHTML = html;
-      }
-
-      async function rephraseRow(rowIdx) {
-        try {
-          setRunning(true);
-          const r = await fetch(`/api/rephrase-row?row=${encodeURIComponent(rowIdx)}`, { method: 'POST' });
-          const body = await r.text();
-          if (!r.ok) throw new Error(body || 'rephrase failed');
-          document.getElementById('tableWrap').innerHTML = body;
-        } catch (e) {
-          logEl.textContent = String(e);
-        } finally {
-          setRunning(false);
-        }
-      }
-
-      function downloadCsv() {
-        window.location.href = '/api/result.csv';
-      }
-
-      function downloadXlsx() {
-        window.location.href = '/api/result.xlsx';
-      }
-
-      refreshLists().catch(console.error);
-      refreshResult().catch(() => {});
-      refreshHealth().catch(() => {});
-      setInterval(() => refreshHealth().catch(() => {}), 5000);
-
-      restoreLlmUi();
-      restoreResetUi();
-    </script>
-  </body>
-</html>
-"""
+def _read_index_html() -> str:
+    if not INDEX_HTML_PATH.exists():
+        return "<html><body><pre>frontend_app/static/index.html not found</pre></body></html>"
+    return INDEX_HTML_PATH.read_text(encoding="utf-8", errors="replace")
 
 
 def _safe_filename(name: str) -> str:
@@ -535,11 +151,7 @@ def _rows_to_html_table(header: list[str], rows: list[list[str]], *, with_action
             # markdown output already uses <br>, <small>; keep as-is (trusted local artifact)
             out.append(f"<td>{c}</td>")
         if with_actions:
-            out.append(
-                "<td>"
-                f"<button class='secondary' onclick='rephraseRow({row_idx})'>Переделать</button>"
-                "</td>"
-            )
+            out.append("<td>" f"<button class='secondary' onclick='rephraseRow({row_idx})'>Переделать</button>" "</td>")
         out.append("</tr>")
     out.append("</tbody></table>")
     return "".join(out)
@@ -631,24 +243,10 @@ def _rows_to_xlsx_bytes(header: list[str], rows: list[list[str]]) -> bytes:
     return buf.getvalue()
 
 
-def _run_cmd(args: list[str], cwd: Path) -> tuple[int, str]:
-    p = subprocess.run(
-        args,
-        cwd=str(cwd),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        env=os.environ.copy(),
-    )
-    return p.returncode, p.stdout
-
-
 def _run_cmd_stream(args: list[str], cwd: Path):
     """
     Stream stdout/stderr progressively while process runs.
-    We read bytes chunks (not lines) so progress bars (\r) appear immediately.
+    We read bytes chunks (not lines) so progress bars (\\r) appear immediately.
     """
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
@@ -741,17 +339,6 @@ def _neo4j_stage_reset(reset_fn: Callable[[Driver], None]) -> None:
         drv.close()
 
 
-def _reset_neo4j_full() -> None:
-    """Полная очистка графа (оставлено для ручного/отладочного использования)."""
-    db = os.getenv("NEO4J_DATABASE", "neo4j").strip() or "neo4j"
-    drv = _neo4j_driver()
-    try:
-        with drv.session(database=db) as s:
-            s.run("MATCH (n) DETACH DELETE n").consume()
-    finally:
-        drv.close()
-
-
 def _reset_result_artifacts() -> None:
     """
     Ensure UI does not show stale result file between runs.
@@ -760,7 +347,6 @@ def _reset_result_artifacts() -> None:
         if RESULT_MD.exists():
             RESULT_MD.unlink()
     except Exception:
-        # best-effort
         pass
 
 
@@ -805,11 +391,129 @@ def _neo4j_profstandard_count() -> int:
     try:
         db = os.getenv("NEO4J_DATABASE", "neo4j").strip() or "neo4j"
         with drv.session(database=db) as s:
-            rec = s.run(
-                "MATCH (d:Document {source: $src}) RETURN count(d) AS c",
-                src="profstandard",
-            ).single()
+            rec = s.run("MATCH (d:Document {source: $src}) RETURN count(d) AS c", src="profstandard").single()
             return int(rec["c"] or 0) if rec else 0
+    finally:
+        drv.close()
+
+
+@app.get("/api/projection")
+def projection(kind: PROJ_KIND = Query("match"), limit: int = Query(400, ge=50, le=3000)) -> dict:
+    """
+    Flat JOIN-like projections for debugging (no graph visualization).
+    Returns: {kind, header, rows}
+    """
+    if kind not in ("ps", "npa", "match"):
+        raise HTTPException(status_code=400, detail="kind must be ps|npa|match")
+
+    drv = _neo4j_driver()
+    try:
+        db = os.getenv("NEO4J_DATABASE", "neo4j").strip() or "neo4j"
+        with drv.session(database=db) as s:
+            if kind == "ps":
+                header = ["ps_id", "ps_path", "otf_code", "otf_name", "role_name", "workscope", "involves_score", "involves_keywords"]
+                q = """
+                MATCH (ps:Document {source:'profstandard'})-[:HAS_OTF]->(o:OTF)
+                OPTIONAL MATCH (o)-[:HAS_ROLE]->(r:Role)
+                OPTIONAL MATCH (o)-[inv:INVOLVES]->(w:WorkScope)
+                RETURN ps.id AS ps_id, ps.path AS ps_path,
+                       o.code AS otf_code, o.name AS otf_name,
+                       r.name AS role_name,
+                       w.name AS workscope, inv.score AS involves_score, inv.keywords AS involves_keywords
+                ORDER BY ps.updated_at DESC, o.code, r.name, w.name
+                LIMIT $limit
+                """
+                rows = []
+                for rec in s.run(q, limit=int(limit)):
+                    rows.append(
+                        [
+                            rec.get("ps_id") or "",
+                            rec.get("ps_path") or "",
+                            rec.get("otf_code") or "",
+                            rec.get("otf_name") or "",
+                            rec.get("role_name") or "",
+                            rec.get("workscope") or "",
+                            "" if rec.get("involves_score") is None else str(rec.get("involves_score")),
+                            ",".join([str(x) for x in (rec.get("involves_keywords") or []) if x]),
+                        ]
+                    )
+                return {"kind": kind, "header": header, "rows": rows}
+
+            if kind == "npa":
+                header = ["npa_id", "npa_title", "norm_number", "workscope", "req_type", "req_text", "norm_text"]
+                q = """
+                MATCH (n:Norm)-[:MENTIONED_IN]->(d:Document {source:'npa'})
+                OPTIONAL MATCH (n)-[:APPLIES_TO]->(w:WorkScope)
+                OPTIONAL MATCH (n)-[:SETS_REQUIREMENT]->(r:Requirement)
+                RETURN d.id AS npa_id, d.title AS npa_title,
+                       n.number AS norm_number, w.name AS workscope,
+                       r.type AS req_type, r.text AS req_text,
+                       n.text AS norm_text
+                ORDER BY d.updated_at DESC, n.number
+                LIMIT $limit
+                """
+                rows = []
+                for rec in s.run(q, limit=int(limit)):
+                    rows.append(
+                        [
+                            rec.get("npa_id") or "",
+                            rec.get("npa_title") or "",
+                            rec.get("norm_number") or "",
+                            rec.get("workscope") or "",
+                            rec.get("req_type") or "",
+                            (rec.get("req_text") or "")[:400],
+                            (rec.get("norm_text") or "")[:500],
+                        ]
+                    )
+                return {"kind": kind, "header": header, "rows": rows}
+
+            # match
+            header = [
+                "npa_title",
+                "norm_number",
+                "workscope",
+                "ps_id",
+                "otf_code",
+                "otf_name",
+                "match_via_workscope",
+                "involves_score",
+                "involves_keywords",
+            ]
+            q = """
+            MATCH (n:Norm)-[m:MATCHES_OTF]->(o:OTF)
+            OPTIONAL MATCH (n)-[:MENTIONED_IN]->(nd:Document {source:'npa'})
+            OPTIONAL MATCH (o)<-[:HAS_OTF]-(pd:Document {source:'profstandard'})
+            OPTIONAL MATCH (n)-[:APPLIES_TO]->(w:WorkScope)
+            OPTIONAL MATCH (o)-[inv:INVOLVES]->(w2:WorkScope {name: coalesce(w.name, m.via_workscope)})
+            RETURN
+              nd.title AS npa_title,
+              n.number AS norm_number,
+              coalesce(w.name, m.via_workscope) AS workscope,
+              pd.id AS ps_id,
+              o.code AS otf_code,
+              o.name AS otf_name,
+              m.via_workscope AS match_via_workscope,
+              inv.score AS involves_score,
+              inv.keywords AS involves_keywords
+            ORDER BY n.number, o.code
+            LIMIT $limit
+            """
+            rows = []
+            for rec in s.run(q, limit=int(limit)):
+                rows.append(
+                    [
+                        rec.get("npa_title") or "",
+                        rec.get("norm_number") or "",
+                        rec.get("workscope") or "",
+                        rec.get("ps_id") or "",
+                        rec.get("otf_code") or "",
+                        rec.get("otf_name") or "",
+                        rec.get("match_via_workscope") or "",
+                        "" if rec.get("involves_score") is None else str(rec.get("involves_score")),
+                        ",".join([str(x) for x in (rec.get("involves_keywords") or []) if x]),
+                    ]
+                )
+            return {"kind": kind, "header": header, "rows": rows}
     finally:
         drv.close()
 
@@ -1056,14 +760,11 @@ def _pipeline_chunks(payload: dict):
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    return INDEX_HTML
+    return _read_index_html()
 
 
 @app.get("/api/health")
 def health() -> dict:
-    """
-    Availability checks for services this UI depends on.
-    """
     neo_ok, neo_detail = _neo4j_is_reachable()
     llm_ok, llm_detail = _ollama_is_reachable()
     return {
@@ -1119,9 +820,6 @@ def delete_file(kind: KIND, name: str) -> dict:
 
 @app.post("/api/run")
 def run_pipeline(payload: dict = Body(default_factory=dict)) -> dict:
-    """
-    Синхронный запуск пайплайна (body: stage + блоки ps/npa/table).
-    """
     parts: list[str] = []
     for ch in _pipeline_chunks(payload):
         parts.append(ch)
@@ -1133,16 +831,10 @@ def run_pipeline(payload: dict = Body(default_factory=dict)) -> dict:
 
 @app.post("/api/run.stream")
 def run_pipeline_stream(payload: dict = Body(default_factory=dict)):
-    """
-    Потоковый лог. payload.stage: ps | npa | table | all
-    """
     return StreamingResponse(
         _pipeline_chunks(payload),
         media_type="text/plain; charset=utf-8",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
@@ -1164,10 +856,6 @@ def result_html() -> str:
 
 @app.post("/api/rephrase-row", response_class=HTMLResponse)
 def rephrase_row(row: int = Query(..., ge=0)) -> str:
-    """
-    Re-run LLM only for the single row (one cell: "переформулирование ...") using the raw snippet cell.
-    Updates output/list_mandatory_ps.md in-place and returns updated HTML table.
-    """
     if not RESULT_MD.exists():
         raise HTTPException(status_code=404, detail="output/list_mandatory_ps.md not found")
 
@@ -1188,7 +876,6 @@ def rephrase_row(row: int = Query(..., ge=0)) -> str:
     if not raw_text or raw_text == "—":
         raise HTTPException(status_code=400, detail="Raw snippet is empty for this row")
 
-    # Lazy import: only needed on-demand.
     from app.table_llm_rephrase import try_rephrase_table_snippet
 
     out = try_rephrase_table_snippet(raw_text)
@@ -1205,7 +892,6 @@ def rephrase_row(row: int = Query(..., ge=0)) -> str:
     new_lines[start:end] = new_tbl.splitlines()
     RESULT_MD.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
 
-    # Re-read from disk to ensure UI reflects the exact saved artifact.
     md2 = RESULT_MD.read_text(encoding="utf-8", errors="replace")
     header2, rows2 = _parse_markdown_table(md2)
     return _rows_to_html_table(header2, rows2, with_actions=True)

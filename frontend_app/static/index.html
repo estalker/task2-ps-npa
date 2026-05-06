@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Task2 — ПС / НПА</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <div class="row" style="justify-content: space-between;">
+      <h1>Task2 — менеджер файлов ПС/НПА + таблица</h1>
+      <div class="statusBar">
+        <div class="lights" id="lights"></div>
+        <span class="pill" id="status">idle</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>1) ПС (docx/rtf)</h2>
+        <div class="row">
+          <input id="psFiles" type="file" multiple accept=".docx,.rtf" />
+          <button class="secondary" onclick="upload('ps')">Загрузить</button>
+          <span class="muted">Сохраняется в <span class="mono">input/ps</span></span>
+        </div>
+        <ul id="psList" class="mono"></ul>
+      </div>
+
+      <div class="card">
+        <h2>2) НПА (docx/rtf)</h2>
+        <div class="row">
+          <input id="npaFiles" type="file" multiple accept=".docx,.rtf" />
+          <button class="secondary" onclick="upload('npa')">Загрузить</button>
+          <span class="muted">Сохраняется в <span class="mono">input/npa</span></span>
+        </div>
+        <ul id="npaList" class="mono"></ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <h2>Этапы пайплайна</h2>
+      <p class="muted" style="margin-top:0;">Для каждого этапа можно выбрать свою модель Ollama (через <span class="mono">OPENAI_BASE_URL</span> / <span class="mono">OPENAI_MODEL</span> в контейнере).</p>
+
+      <div style="border-top:1px solid #e2e8f0; margin-top:12px; padding-top:12px;">
+        <h2 style="font-size:15px;">Этап 1 — ПС → Neo4j</h2>
+        <p class="muted" style="margin:6px 0 8px;">Перед запуском в Neo4j сбрасываются только данные ПС (не трогаем НПА). Очищается <span class="mono">output/list_mandatory_ps.md</span>. Загрузка из <span class="mono">input/ps</span>, опционально — нейросеть.</p>
+        <div class="row">
+          <label class="muted" style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="psResetDb" checked /> Очистить данные ПС перед загрузкой
+          </label>
+          <label class="muted" style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="psLlmUse" /> Нейросеть для ПС
+          </label>
+          <span class="muted">Модель:</span>
+          <select id="psLlmModel">
+            <option value="qwen2.5:3b-instruct">qwen2.5:3b-instruct</option>
+            <option value="qwen2.5:7b-instruct">qwen2.5:7b-instruct</option>
+          </select>
+          <button id="btnStagePs" onclick="runStage('ps')">Запустить этап 1</button>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #e2e8f0; margin-top:12px; padding-top:12px;">
+        <h2 style="font-size:15px;">Этап 2 — НПА → Neo4j</h2>
+        <p class="muted" style="margin:6px 0 8px;">Перед запуском сбрасываются только данные НПА в Neo4j (ПС не трогаем). Снова очищается <span class="mono">list_mandatory_ps.md</span>. Загрузка из <span class="mono">input/npa</span>, опционально — нейросеть.</p>
+        <div class="row">
+          <label class="muted" style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="npaResetDb" checked /> Очистить данные НПА перед загрузкой
+          </label>
+          <label class="muted" style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="npaLlmUse" /> Нейросеть для НПА
+          </label>
+          <span class="muted">Модель:</span>
+          <select id="npaLlmModel">
+            <option value="qwen2.5:3b-instruct">qwen2.5:3b-instruct</option>
+            <option value="qwen2.5:7b-instruct">qwen2.5:7b-instruct</option>
+          </select>
+          <button id="btnStageNpa" onclick="runStage('npa')">Запустить этап 2</button>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #e2e8f0; margin-top:12px; padding-top:12px;">
+        <h2 style="font-size:15px;">Этап 3 — Таблица</h2>
+        <p class="muted" style="margin:6px 0 8px;">Перед запуском сбрасывается слой сопоставления в Neo4j (ОТФ, роли, связи Norm↔ОТФ). Файл <span class="mono">list_mandatory_ps.md</span> удаляется, затем строится таблица заново. Опционально — нейросеть для формулировок в ячейках.</p>
+        <div class="row">
+          <label class="muted" style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="tableLlmUse" /> Нейросеть для таблицы
+          </label>
+          <span class="muted">Модель:</span>
+          <select id="tableLlmModel">
+            <option value="qwen2.5:3b-instruct">qwen2.5:3b-instruct</option>
+            <option value="qwen2.5:7b-instruct">qwen2.5:7b-instruct</option>
+          </select>
+          <button id="btnStageTable" onclick="runStage('table')">Сформировать таблицу</button>
+        </div>
+      </div>
+
+      <div class="toolbar" style="margin-top: 14px; border-top:1px solid #e2e8f0; padding-top:12px;">
+        <button id="btnStageAll" onclick="runStage('all')">Пройти все этапы</button>
+        <button class="secondary" onclick="refreshResult()">Обновить таблицу</button>
+        <button class="secondary" onclick="downloadCsv()">Скачать CSV</button>
+        <button class="secondary" onclick="downloadXlsx()">Скачать Excel</button>
+      </div>
+
+      <details style="margin-top: 10px;">
+        <summary>Лог последнего запуска</summary>
+        <pre class="mono" id="log" style="margin-top: 10px; background:#0b1220; color:#e2e8f0; padding: 12px; border-radius: 12px; overflow:auto; max-height: 30vh;"></pre>
+      </details>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <div class="tabs">
+        <button class="tab active" id="tabResult" onclick="setTab('result')">Таблица</button>
+        <button class="tab" id="tabProj" onclick="setTab('proj')">Проекции</button>
+      </div>
+
+      <div class="tabPanel active" id="panelResult">
+        <h2>Результат (HTML таблица из markdown)</h2>
+        <div class="tableWrap" id="tableWrap"></div>
+      </div>
+
+      <div class="tabPanel" id="panelProj">
+        <h2>Проекции графа (как JOIN, для отладки)</h2>
+        <p class="muted" style="margin-top:0;">
+          Тут не “рисуем граф”, а показываем плоские представления: ПС, НПА и MATCH (Norm↔OTF) с контекстом.
+        </p>
+        <div class="toolbar">
+          <span class="muted">Проекция:</span>
+          <select id="projKind">
+            <option value="match">MATCH (join)</option>
+            <option value="ps">ПС</option>
+            <option value="npa">НПА</option>
+          </select>
+          <span class="muted">Лимит строк:</span>
+          <input id="projLimit" type="number" min="50" max="3000" step="50" value="400" />
+          <button class="secondary" onclick="loadProjection()">Обновить</button>
+        </div>
+        <div class="tableWrap" id="projWrap" style="margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <script defer src="/static/app.js"></script>
+  </body>
+</html>
+
