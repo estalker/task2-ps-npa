@@ -357,7 +357,16 @@ INDEX_HTML = """<!doctype html>
         try {
           persistLlmUi();
           persistResetUi();
-          const payload = { stage, ...llmPayload(), ...resetPayload() };
+          // IMPORTANT: both llmPayload() and resetPayload() contain ps/npa/table objects.
+          // Shallow spreading would overwrite these nested objects and drop fields.
+          const llm = llmPayload();
+          const rst = resetPayload();
+          const payload = {
+            stage,
+            ps: { ...(llm.ps || {}), ...(rst.ps || {}) },
+            npa: { ...(llm.npa || {}), ...(rst.npa || {}) },
+            table: { ...(llm.table || {}), ...(rst.table || {}) },
+          };
           const r = await fetch('/api/run.stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
