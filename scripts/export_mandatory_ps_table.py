@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import sys
@@ -383,6 +384,7 @@ def main(argv: list[str] | None = None) -> int:
         return " ".join(str(v or "").split())
 
     llm_budget = max(0, int(args.llm_max_calls)) if args.rephrase_with_llm and try_rephrase_fn else 0
+    rephrase_cache: dict[str, str] = {}
 
     try:
         # Load all PS documents (multi-PS)
@@ -536,13 +538,18 @@ def main(argv: list[str] | None = None) -> int:
                 if llm_budget > 0 and try_rephrase_fn and norm_text and norm_text != "—":
                     plain = " ".join(str(norm_text).split())
                     if len(plain) >= 40:
-                        try:
-                            r = try_rephrase_fn(plain)
-                            if r:
-                                applied_to_cell = r
-                                llm_budget -= 1
-                        except Exception:
-                            pass
+                        hkey = hashlib.sha256(plain.encode("utf-8")).hexdigest()
+                        if hkey in rephrase_cache:
+                            applied_to_cell = rephrase_cache[hkey]
+                        else:
+                            try:
+                                r = try_rephrase_fn(plain)
+                                if r:
+                                    applied_to_cell = r
+                                    rephrase_cache[hkey] = r
+                                    llm_budget -= 1
+                            except Exception:
+                                pass
 
                 npa_cell = clean_cell(f"{npa_title} (пункт {norm_number})").strip() if npa_title or norm_number else "—"
                 otf_cell = clean_cell(", ".join(matched_otf_codes)) if matched_otf_codes else "—"

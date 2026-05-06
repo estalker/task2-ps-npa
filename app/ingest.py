@@ -19,6 +19,18 @@ def _sha1(s: str) -> str:
     return hashlib.sha1(s.encode("utf-8")).hexdigest()
 
 
+def _sha256_bytes(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+def _doc_id_from_bytes(doc_source: str, b: bytes) -> str:
+    """
+    Stable document id across renames / path changes.
+    Include source to avoid accidental collisions between different pipelines.
+    """
+    return _sha1(f"{doc_source}:{_sha256_bytes(b)}")
+
+
 def _extract_requirement_block(raw_text: str, heading_re: str) -> str | None:
     """
     Best-effort extraction for profstandard requirement sections.
@@ -83,9 +95,10 @@ def main() -> int:
 
     for f in tqdm(files, desc="Ingesting"):
         print(f"[DOC] reading {f.name} ...", flush=True)
+        doc_bytes = f.read_bytes()
         raw_text = extract_text_from_docx(f)
         print(f"[DOC] {f.name}: extracted {len(raw_text)} chars", flush=True)
-        doc_id = _sha1(str(f.resolve()))
+        doc_id = _doc_id_from_bytes(args.doc_source, doc_bytes)
 
         extractions: list[Extraction] = []
 

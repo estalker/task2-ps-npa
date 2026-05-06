@@ -64,7 +64,8 @@ def _ollama_generate(prompt: str, *, model: str, timeout_s: int, base_url: str) 
         "prompt": prompt,
         "stream": False,
         "format": "json",
-        "options": {"temperature": 0.1, "num_predict": 768},
+        # temperature 0: одинаковый вход НПА → одинаковая ячейка при повторных строках (19.005 / 19.071 и т.д.)
+        "options": {"temperature": 0, "num_predict": 768},
     }
     req = urllib.request.Request(
         url,

@@ -15,6 +15,18 @@ def _sha1(s: str) -> str:
     return hashlib.sha1(s.encode("utf-8")).hexdigest()
 
 
+def _sha256_bytes(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+def _doc_id_from_bytes(doc_source: str, b: bytes) -> str:
+    """
+    Stable document id across renames / path changes.
+    Include source to avoid accidental collisions between different pipelines.
+    """
+    return _sha1(f"{doc_source}:{_sha256_bytes(b)}")
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Ingest NPA RTF into Neo4j (WorkScope + qualification requirements)")
     p.add_argument("--input", default="input", help="Folder with NPA files (currently: .rtf)")
@@ -43,10 +55,11 @@ def main() -> int:
     for f in rtf_files:
         print(f"[NPA] extracting {f.name} ...", flush=True)
         doc_path = str(f.resolve())
-        doc_id = _sha1(doc_path)
+        doc_bytes = f.read_bytes()
+        doc_id = _doc_id_from_bytes("npa", doc_bytes)
         title = f.stem
 
-        text = rtf_to_text(f.read_bytes())
+        text = rtf_to_text(doc_bytes)
         norms = extract_norm_segments(doc_title=title, doc_path=doc_path, text=text)
 
         # Optional: refine a limited number of Norms via LLM

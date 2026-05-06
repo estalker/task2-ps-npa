@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import html
+import hashlib
 import os
 import re
 import shutil
@@ -31,6 +32,9 @@ PS_DIR = INPUT_DIR / "ps"
 NPA_DIR = INPUT_DIR / "npa"
 
 RESULT_MD = OUTPUT_DIR / "list_mandatory_ps.md"
+
+COL_REPHRASED_HINT = "переформулирован"
+COL_RAW_HINT = "исходный фрагмент"
 
 
 app = FastAPI(title="Task2 Frontend")
@@ -115,6 +119,9 @@ INDEX_HTML = """<!doctype html>
         <p class="muted" style="margin:6px 0 8px;">Перед запуском в Neo4j сбрасываются только данные ПС (не трогаем НПА). Очищается <span class="mono">output/list_mandatory_ps.md</span>. Загрузка из <span class="mono">input/ps</span>, опционально — нейросеть.</p>
         <div class="row">
           <label class="muted" style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="psResetDb" checked /> Очистить данные ПС перед загрузкой
+          </label>
+          <label class="muted" style="display:flex; gap:8px; align-items:center;">
             <input type="checkbox" id="psLlmUse" /> Нейросеть для ПС
           </label>
           <span class="muted">Модель:</span>
@@ -130,6 +137,9 @@ INDEX_HTML = """<!doctype html>
         <h2 style="font-size:15px;">Этап 2 — НПА → Neo4j</h2>
         <p class="muted" style="margin:6px 0 8px;">Перед запуском сбрасываются только данные НПА в Neo4j (ПС не трогаем). Снова очищается <span class="mono">list_mandatory_ps.md</span>. Загрузка из <span class="mono">input/npa</span>, опционально — нейросеть.</p>
         <div class="row">
+          <label class="muted" style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="npaResetDb" checked /> Очистить данные НПА перед загрузкой
+          </label>
           <label class="muted" style="display:flex; gap:8px; align-items:center;">
             <input type="checkbox" id="npaLlmUse" /> Нейросеть для НПА
           </label>
@@ -199,12 +209,28 @@ INDEX_HTML = """<!doctype html>
         };
       }
 
+      function resetPayload() {
+        return {
+          ps: { reset_db: !!document.getElementById('psResetDb').checked },
+          npa: { reset_db: !!document.getElementById('npaResetDb').checked },
+          table: { reset_db: true }, // stage 3 always rebuilds matching layer / result
+        };
+      }
+
       function persistLlmUi() {
         const p = llmPayload();
         try {
           localStorage.setItem('task2_llm_ps', JSON.stringify(p.ps));
           localStorage.setItem('task2_llm_npa', JSON.stringify(p.npa));
           localStorage.setItem('task2_llm_table', JSON.stringify(p.table));
+        } catch (_) {}
+      }
+
+      function persistResetUi() {
+        const p = resetPayload();
+        try {
+          localStorage.setItem('task2_reset_ps', JSON.stringify(p.ps));
+          localStorage.setItem('task2_reset_npa', JSON.stringify(p.npa));
         } catch (_) {}
       }
 
@@ -221,6 +247,25 @@ INDEX_HTML = """<!doctype html>
             if (o && typeof o === 'object') {
               document.getElementById(useId).checked = !!o.use_llm;
               if (o.model) document.getElementById(modelId).value = o.model;
+            }
+          }
+        } catch (_) {}
+      }
+
+      function restoreResetUi() {
+        try {
+          for (const [key, id, defaultVal] of [
+            ['task2_reset_ps', 'psResetDb', true],
+            ['task2_reset_npa', 'npaResetDb', true],
+          ]) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            el.checked = defaultVal;
+            const raw = localStorage.getItem(key);
+            if (!raw) continue;
+            const o = JSON.parse(raw);
+            if (o && typeof o === 'object' && o.reset_db !== undefined) {
+              el.checked = !!o.reset_db;
             }
           }
         } catch (_) {}
@@ -311,7 +356,8 @@ INDEX_HTML = """<!doctype html>
         logEl.textContent = '';
         try {
           persistLlmUi();
-          const payload = { stage, ...llmPayload() };
+          persistResetUi();
+          const payload = { stage, ...llmPayload(), ...resetPayload() };
           const r = await fetch('/api/run.stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -343,6 +389,20 @@ INDEX_HTML = """<!doctype html>
         document.getElementById('tableWrap').innerHTML = html;
       }
 
+      async function rephraseRow(rowIdx) {
+        try {
+          setRunning(true);
+          const r = await fetch(`/api/rephrase-row?row=${encodeURIComponent(rowIdx)}`, { method: 'POST' });
+          const body = await r.text();
+          if (!r.ok) throw new Error(body || 'rephrase failed');
+          document.getElementById('tableWrap').innerHTML = body;
+        } catch (e) {
+          logEl.textContent = String(e);
+        } finally {
+          setRunning(false);
+        }
+      }
+
       function downloadCsv() {
         window.location.href = '/api/result.csv';
       }
@@ -357,6 +417,7 @@ INDEX_HTML = """<!doctype html>
       setInterval(() => refreshHealth().catch(() => {}), 5000);
 
       restoreLlmUi();
+      restoreResetUi();
     </script>
   </body>
 </html>
@@ -380,6 +441,47 @@ def _ensure_dirs() -> None:
     PS_DIR.mkdir(parents=True, exist_ok=True)
     NPA_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _sha256_bytes(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+def _existing_hashes(d: Path) -> dict[str, str]:
+    """
+    sha256 -> filename
+    Best-effort: ignores unreadable files.
+    """
+    out: dict[str, str] = {}
+    for p in d.iterdir():
+        if not p.is_file():
+            continue
+        try:
+            h = _sha256_bytes(p.read_bytes())
+            out[h] = p.name
+        except Exception:
+            continue
+    return out
+
+
+def _dedup_name(d: Path, name: str) -> str:
+    """
+    If file exists, return a non-colliding name by adding " (2)", " (3)", ...
+    """
+    base = _safe_filename(name)
+    stem = base
+    ext = ""
+    if "." in base:
+        stem = base.rsplit(".", 1)[0]
+        ext = "." + base.rsplit(".", 1)[1]
+    cand = stem + ext
+    i = 2
+    while (d / cand).exists():
+        cand = f"{stem} ({i}){ext}"
+        i += 1
+        if i > 99:
+            break
+    return cand
 
 
 def _strip_html(s: str) -> str:
@@ -407,20 +509,28 @@ def _parse_markdown_table(md_text: str) -> tuple[list[str], list[list[str]]]:
     return header, rows
 
 
-def _rows_to_html_table(header: list[str], rows: list[list[str]]) -> str:
+def _rows_to_html_table(header: list[str], rows: list[list[str]], *, with_actions: bool = True) -> str:
     if not header:
         return "<div class='muted'>Нет таблицы в output/list_mandatory_ps.md</div>"
     out = ["<table>"]
     out.append("<thead><tr>")
     for h in header:
         out.append(f"<th>{html.escape(h)}</th>")
+    if with_actions:
+        out.append("<th>Действия</th>")
     out.append("</tr></thead>")
     out.append("<tbody>")
-    for r in rows:
+    for row_idx, r in enumerate(rows):
         out.append("<tr>")
         for c in r:
             # markdown output already uses <br>, <small>; keep as-is (trusted local artifact)
             out.append(f"<td>{c}</td>")
+        if with_actions:
+            out.append(
+                "<td>"
+                f"<button class='secondary' onclick='rephraseRow({row_idx})'>Переделать</button>"
+                "</td>"
+            )
         out.append("</tr>")
     out.append("</tbody></table>")
     return "".join(out)
@@ -562,6 +672,51 @@ def _run_cmd_stream(args: list[str], cwd: Path):
     return rc
 
 
+def _find_col_idx(header: list[str], hint: str) -> int:
+    h = [str(x or "").strip().lower() for x in (header or [])]
+    hint = (hint or "").strip().lower()
+    for i, name in enumerate(h):
+        if hint and hint in name:
+            return i
+    return -1
+
+
+def _parse_markdown_table_with_span(md_text: str) -> tuple[list[str], list[list[str]], int, int, list[str]]:
+    """
+    Returns: header, rows, start_line_idx, end_line_idx_exclusive, all_lines (without \\n).
+    Table span is the maximal contiguous block of lines starting with '|'.
+    """
+    all_lines = [ln.rstrip("\n") for ln in (md_text or "").splitlines()]
+    start = -1
+    end = -1
+    for i, ln in enumerate(all_lines):
+        if ln.strip().startswith("|"):
+            start = i
+            break
+    if start == -1:
+        return [], [], -1, -1, all_lines
+    end = start
+    while end < len(all_lines) and all_lines[end].strip().startswith("|"):
+        end += 1
+    header, rows = _parse_markdown_table("\n".join(all_lines[start:end]))
+    return header, rows, start, end, all_lines
+
+
+def _rows_to_markdown_table(header: list[str], rows: list[list[str]]) -> str:
+    if not header:
+        return ""
+    sep = "|" + "|".join(["---"] * len(header)) + "|"
+    out: list[str] = []
+    out.append("| " + " | ".join([str(h or "").strip() for h in header]) + " |")
+    out.append(sep)
+    for r in rows:
+        rr = [str(c or "").strip() for c in (r or [])]
+        if len(rr) < len(header):
+            rr += [""] * (len(header) - len(rr))
+        out.append("| " + " | ".join(rr[: len(header)]) + " |")
+    return "\n".join(out)
+
+
 def _neo4j_driver() -> Driver:
     uri = os.getenv("NEO4J_URI", "bolt://neo4j:7687").strip() or "bolt://neo4j:7687"
     user = os.getenv("NEO4J_USER", "neo4j").strip() or "neo4j"
@@ -683,6 +838,17 @@ def _resolve_stage_llm(payload: dict, key: str) -> tuple[bool, str | None]:
     return u, m
 
 
+def _resolve_stage_reset(payload: dict, key: str, *, default: bool = True) -> bool:
+    """
+    reset_db flag for ps|npa|table. Default keeps legacy behavior (reset on).
+    """
+    block = _llm_subpayload(payload, key)
+    v = block.get("reset_db")
+    if v is None:
+        return default
+    return bool(v)
+
+
 def _snapshot_openai_model() -> str | None:
     v = os.environ.get("OPENAI_MODEL")
     return v if isinstance(v, str) and v.strip() else None
@@ -712,6 +878,8 @@ def _pipeline_chunks(payload: dict):
     use_ps, model_ps = _resolve_stage_llm(payload, "ps")
     use_npa, model_npa = _resolve_stage_llm(payload, "npa")
     use_tbl, model_tbl = _resolve_stage_llm(payload, "table")
+    reset_ps = _resolve_stage_reset(payload, "ps", default=True)
+    reset_npa = _resolve_stage_reset(payload, "npa", default=True)
 
     want_llm = False
     if stage in ("ps", "all") and use_ps:
@@ -735,14 +903,17 @@ def _pipeline_chunks(payload: dict):
     )
 
     if stage in ("ps", "all"):
-        try:
-            _neo4j_stage_reset(reset_profstandard_subgraph)
-            _reset_result_artifacts()
-            yield "[NEO4J] сброс этапа 1: только ПС (profstandard, OTF/Role, связанные Profession/Qualification/Requirement)\n\n"
-            yield "[OUTPUT] cleared output/list_mandatory_ps.md\n\n"
-        except Exception as e:
-            yield f"[ERROR] Neo4j reset (этап 1) failed: {e}\n"
-            return
+        if reset_ps:
+            try:
+                _neo4j_stage_reset(reset_profstandard_subgraph)
+                _reset_result_artifacts()
+                yield "[NEO4J] сброс этапа 1: только ПС (profstandard, OTF/Role, связанные Profession/Qualification/Requirement)\n\n"
+                yield "[OUTPUT] cleared output/list_mandatory_ps.md\n\n"
+            except Exception as e:
+                yield f"[ERROR] Neo4j reset (этап 1) failed: {e}\n"
+                return
+        else:
+            yield "[NEO4J] этап 1: сброс отключён (добавляем/обновляем ПС поверх имеющихся данных)\n\n"
 
         ps_files = [p for p in PS_DIR.iterdir() if p.is_file()]
         if not ps_files:
@@ -784,14 +955,17 @@ def _pipeline_chunks(payload: dict):
             yield "[ERROR] В Neo4j нет ПС (profstandard). Сначала выполните этап 1.\n"
             return
 
-        try:
-            _neo4j_stage_reset(reset_npa_subgraph)
-            _reset_result_artifacts()
-            yield "[NEO4J] сброс этапа 2: только НПА (Document npa, Norm, осиротевшие WorkScope/Requirement)\n\n"
-            yield "[OUTPUT] cleared output/list_mandatory_ps.md\n\n"
-        except Exception as e:
-            yield f"[ERROR] Neo4j reset (этап 2) failed: {e}\n"
-            return
+        if reset_npa:
+            try:
+                _neo4j_stage_reset(reset_npa_subgraph)
+                _reset_result_artifacts()
+                yield "[NEO4J] сброс этапа 2: только НПА (Document npa, Norm, осиротевшие WorkScope/Requirement)\n\n"
+                yield "[OUTPUT] cleared output/list_mandatory_ps.md\n\n"
+            except Exception as e:
+                yield f"[ERROR] Neo4j reset (этап 2) failed: {e}\n"
+                return
+        else:
+            yield "[NEO4J] этап 2: сброс отключён (добавляем/обновляем НПА поверх имеющихся данных)\n\n"
 
         npa_files = [p for p in NPA_DIR.iterdir() if p.is_file()]
         if any(p.suffix.lower() == ".rtf" for p in npa_files):
@@ -903,15 +1077,24 @@ async def upload_files(kind: KIND = Query(...), files: list[UploadFile] = File(.
     _ensure_dirs()
     d = _kind_dir(kind)
     saved: list[str] = []
+    skipped: list[str] = []
+    hashes = _existing_hashes(d)
     for f in files:
         name = _safe_filename(f.filename or "file")
         if not name.lower().endswith((".docx", ".rtf")):
             raise HTTPException(status_code=400, detail=f"Unsupported file type: {name}")
-        dst = d / name
+        body = await f.read()
+        h = _sha256_bytes(body)
+        if h in hashes:
+            skipped.append(name)
+            continue
+        dst_name = name if not (d / name).exists() else _dedup_name(d, name)
+        dst = d / dst_name
         with dst.open("wb") as w:
-            shutil.copyfileobj(f.file, w)
-        saved.append(name)
-    return {"saved": saved}
+            w.write(body)
+        hashes[h] = dst_name
+        saved.append(dst_name)
+    return {"saved": saved, "skipped_duplicates": skipped}
 
 
 @app.delete("/api/files/{kind}/{name}")
@@ -967,7 +1150,56 @@ def result_html() -> str:
         return "<div class='muted'>Файл output/list_mandatory_ps.md пока не создан.</div>"
     md = RESULT_MD.read_text(encoding="utf-8", errors="replace")
     header, rows = _parse_markdown_table(md)
-    return _rows_to_html_table(header, rows)
+    return _rows_to_html_table(header, rows, with_actions=True)
+
+
+@app.post("/api/rephrase-row", response_class=HTMLResponse)
+def rephrase_row(row: int = Query(..., ge=0)) -> str:
+    """
+    Re-run LLM only for the single row (one cell: "переформулирование ...") using the raw snippet cell.
+    Updates output/list_mandatory_ps.md in-place and returns updated HTML table.
+    """
+    if not RESULT_MD.exists():
+        raise HTTPException(status_code=404, detail="output/list_mandatory_ps.md not found")
+
+    md = RESULT_MD.read_text(encoding="utf-8", errors="replace")
+    header, rows, start, end, all_lines = _parse_markdown_table_with_span(md)
+    if not header or not rows or start < 0 or end < 0:
+        raise HTTPException(status_code=400, detail="No markdown table found")
+    if row < 0 or row >= len(rows):
+        raise HTTPException(status_code=400, detail=f"Row index out of range: {row} (0..{len(rows)-1})")
+
+    i_rephr = _find_col_idx(header, COL_REPHRASED_HINT)
+    i_raw = _find_col_idx(header, COL_RAW_HINT)
+    if i_rephr < 0 or i_raw < 0:
+        raise HTTPException(status_code=400, detail="Cannot locate required columns in header")
+
+    raw_cell = rows[row][i_raw] if i_raw < len(rows[row]) else ""
+    raw_text = _strip_html(raw_cell)
+    if not raw_text or raw_text == "—":
+        raise HTTPException(status_code=400, detail="Raw snippet is empty for this row")
+
+    # Lazy import: only needed on-demand.
+    from app.table_llm_rephrase import try_rephrase_table_snippet
+
+    out = try_rephrase_table_snippet(raw_text)
+    if not out:
+        raise HTTPException(status_code=500, detail="LLM rephrase returned empty result (check OPENAI_BASE_URL / model)")
+
+    rows[row][i_rephr] = html.escape(out)
+
+    new_tbl = _rows_to_markdown_table(header, rows)
+    if not new_tbl.strip():
+        raise HTTPException(status_code=500, detail="Failed to rebuild markdown table")
+
+    new_lines = list(all_lines)
+    new_lines[start:end] = new_tbl.splitlines()
+    RESULT_MD.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+    # Re-read from disk to ensure UI reflects the exact saved artifact.
+    md2 = RESULT_MD.read_text(encoding="utf-8", errors="replace")
+    header2, rows2 = _parse_markdown_table(md2)
+    return _rows_to_html_table(header2, rows2, with_actions=True)
 
 
 @app.get("/api/result.csv")
