@@ -20,7 +20,8 @@ li { margin: 6px 0; }
 table { border-collapse: collapse; width: 100%; }
 th, td { border: 1px solid #e2e8f0; padding: 8px; vertical-align: top; }
 th { background: #f8fafc; text-align: left; position: sticky; top: 0; }
-.tableWrap { max-height: 55vh; overflow: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
+/* Bigger table area on small laptop screens */
+.tableWrap { max-height: 72vh; overflow: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
 .toolbar { display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
 .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; background:#f1f5f9; border:1px solid #e2e8f0; font-size: 12px; }
 .statusBar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }

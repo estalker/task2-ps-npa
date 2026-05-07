@@ -903,21 +903,15 @@ async def upload_files(kind: KIND = Query(...), files: list[UploadFile] = File(.
     d = _kind_dir(kind)
     saved: list[str] = []
     skipped: list[str] = []
-    hashes = _existing_hashes(d)
     for f in files:
         name = _safe_filename(f.filename or "file")
         if not name.lower().endswith((".docx", ".rtf")):
             raise HTTPException(status_code=400, detail=f"Unsupported file type: {name}")
         body = await f.read()
-        h = _sha256_bytes(body)
-        if h in hashes:
-            skipped.append(name)
-            continue
         dst_name = name if not (d / name).exists() else _dedup_name(d, name)
         dst = d / dst_name
         with dst.open("wb") as w:
             w.write(body)
-        hashes[h] = dst_name
         saved.append(dst_name)
     return {"saved": saved, "skipped_duplicates": skipped}
 
