@@ -30,6 +30,12 @@ if errorlevel 1 (
   exit /b 1
 )
 
+echo ==^> cleanup: remove existing task2_ollama container (if any)
+for /f "delims=" %%N in ('docker ps -a --format "{{.Names}}" ^| findstr /i /x "task2_ollama"') do (
+  echo Found existing container: %%N
+  docker rm -f "%%N" >nul 2>nul
+)
+
 echo ==^> docker compose up -d (restart ollama, keep volume with models)
 docker compose -f "%COMPOSE_FILE%" up -d --force-recreate ollama
 if errorlevel 1 (
