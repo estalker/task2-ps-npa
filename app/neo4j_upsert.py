@@ -23,10 +23,13 @@ CONSTRAINTS = [
 
 
 MERGE_CYPHER = """
-WITH $doc_id AS docId, $source AS source, $path AS path, $raw_text AS rawText
+WITH $doc_id AS docId, $source AS source, $path AS path, $raw_text AS rawText,
+     $original_path AS original_path, $original_filename AS original_filename
 MERGE (d:Document {id: docId})
 SET d.source = source,
     d.path = path,
+    d.original_path = original_path,
+    d.original_filename = original_filename,
     d.raw_text = rawText,
     d.updated_at = datetime()
 
@@ -116,6 +119,8 @@ def upsert_document(
     doc_id: str,
     source: str,
     path: str,
+    original_path: str | None,
+    original_filename: str | None,
     raw_text: str,
     extractions: list[Extraction],
 ) -> None:
@@ -165,6 +170,8 @@ def upsert_document(
                 doc_id=doc_id,
                 source=source,
                 path=path,
+                original_path=original_path,
+                original_filename=original_filename,
                 raw_text=raw_text,
                 extractions=payload,
             )

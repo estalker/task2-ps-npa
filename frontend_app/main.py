@@ -5,6 +5,7 @@ import html
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable
@@ -12,6 +13,7 @@ from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
+import json
 
 from neo4j import Driver, GraphDatabase
 
@@ -50,11 +52,73 @@ def _read_index_html() -> str:
     return INDEX_HTML_PATH.read_text(encoding="utf-8", errors="replace")
 
 
-def _safe_filename(name: str) -> str:
+def _trim_utf8_to_bytes(s: str, max_bytes: int) -> str:
+    if max_bytes <= 0:
+        return ""
+    b = s.encode("utf-8", errors="ignore")
+    if len(b) <= max_bytes:
+        return s
+    # binary search by codepoints; keep valid UTF-8 boundaries
+    lo, hi = 0, len(s)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if len(s[:mid].encode("utf-8", errors="ignore")) <= max_bytes:
+            lo = mid + 1
+        else:
+            hi = mid
+    cand = s[: max(0, lo - 1)]
+    while cand and len(cand.encode("utf-8", errors="ignore")) > max_bytes:
+        cand = cand[:-1]
+    return cand
+
+
+def _safe_filename(name: str, *, max_len: int = 160, max_bytes: int = 240) -> str:
+    """
+    Produce filesystem-safe, reasonably short filenames.
+    Linux filesystems commonly limit a single path segment to 255 bytes; with UTF-8
+    (Cyrillic) this can be hit easily, so we cap proactively.
+    """
     name = name.replace("\\", "/").split("/")[-1]
     # keep basic set; prevent sneaky paths
-    name = re.sub(r"[^0-9A-Za-zА-Яа-яЁё._() \\-]+", "_", name)
-    return name.strip() or "file"
+    name = re.sub(r"[^0-9A-Za-zА-Яа-яЁё._() \\-]+", "_", name).strip() or "file"
+
+    if max_len <= 20:
+        max_len = 20
+    if max_bytes <= 40:
+        max_bytes = 40
+    if len(name) <= max_len and len(name.encode("utf-8", errors="ignore")) <= max_bytes:
+        return name
+
+    # Preserve extension and common "__<hash>" suffixes from npa_downloader.
+    ext = ""
+    stem = name
+    if "." in name:
+        stem, ext = name.rsplit(".", 1)
+        ext = "." + ext
+
+    m = re.search(r"__(?P<h>[0-9a-fA-F]{6,64})$", stem)
+    hash_part = ""
+    stem_base = stem
+    if m:
+        h = m.group("h")
+        hash_part = "__" + h[-10:]
+        stem_base = stem[: m.start()]
+
+    # Leave room for optional " (2)" suffix from _dedup_name.
+    reserve_chars = len(ext) + len(hash_part) + 4
+    keep_chars = max(1, max_len - reserve_chars)
+    stem_base = stem_base[:keep_chars].rstrip(" _.-")
+
+    # Enforce byte limit too (Cyrillic quickly hits 255 bytes per path segment).
+    reserve_bytes = len((hash_part + ext).encode("utf-8", errors="ignore")) + 10  # room for " (2)"
+    keep_bytes = max(1, max_bytes - reserve_bytes)
+    stem_base = _trim_utf8_to_bytes(stem_base, keep_bytes).rstrip(" _.-")
+
+    out = (stem_base + hash_part + ext).strip() or ("file" + hash_part + ext)
+    # Final hard caps
+    out = out[:max_len]
+    out = _trim_utf8_to_bytes(out, max_bytes)
+    return out
 
 
 def _kind_dir(kind: KIND) -> Path:
@@ -903,17 +967,39 @@ async def upload_files(kind: KIND = Query(...), files: list[UploadFile] = File(.
     d = _kind_dir(kind)
     saved: list[str] = []
     skipped: list[str] = []
+    received: list[dict] = []
+    manifest_path = d / ".upload_manifest.jsonl"
     for f in files:
-        name = _safe_filename(f.filename or "file")
-        if not name.lower().endswith((".docx", ".rtf")):
-            raise HTTPException(status_code=400, detail=f"Unsupported file type: {name}")
-        body = await f.read()
-        dst_name = name if not (d / name).exists() else _dedup_name(d, name)
-        dst = d / dst_name
-        with dst.open("wb") as w:
-            w.write(body)
-        saved.append(dst_name)
-    return {"saved": saved, "skipped_duplicates": skipped}
+        orig = (f.filename or "file").replace("\\", "/")
+        name = _safe_filename(orig)
+        try:
+            if not name.lower().endswith((".docx", ".rtf")):
+                raise HTTPException(status_code=400, detail=f"Unsupported file type: {name}")
+
+            dst_name = name if not (d / name).exists() else _dedup_name(d, name)
+            dst = d / dst_name
+            nbytes = 0
+            with dst.open("wb") as w:
+                while True:
+                    chunk = await f.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    nbytes += len(chunk)
+                    w.write(chunk)
+            try:
+                with manifest_path.open("a", encoding="utf-8") as mf:
+                    mf.write(json.dumps({"stored": dst_name, "original": orig}, ensure_ascii=False) + "\n")
+            except Exception:
+                # best-effort; upload must succeed even if manifest can't be written
+                pass
+            received.append({"name": name, "bytes": nbytes})
+            saved.append(dst_name)
+        except HTTPException:
+            raise
+        except Exception as e:
+            # Make server error actionable in UI
+            raise HTTPException(status_code=500, detail=f"upload failed for {name!r}: {type(e).__name__}: {e}") from e
+    return {"saved": saved, "skipped_duplicates": skipped, "received": received, "received_count": len(received)}
 
 
 @app.delete("/api/files/{kind}/{name}")

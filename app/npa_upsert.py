@@ -27,11 +27,14 @@ CONSTRAINTS = [
 
 
 MERGE_CYPHER = """
-WITH $doc_id AS docId, $source AS source, $path AS path, $title AS title
+WITH $doc_id AS docId, $source AS source, $path AS path, $title AS title,
+     $original_path AS original_path, $original_filename AS original_filename
 MERGE (d:Document {id: docId})
 SET d.source = source,
     d.path = path,
     d.title = title,
+    d.original_path = original_path,
+    d.original_filename = original_filename,
     d.updated_at = datetime()
 
 WITH d, coalesce($norms, []) AS norms
@@ -86,6 +89,8 @@ def upsert_npa_document(
     source: str,
     path: str,
     title: str,
+    original_path: str | None = None,
+    original_filename: str | None = None,
     norms: list[dict[str, Any]],
 ) -> None:
     driver = GraphDatabase.driver(cfg.uri, auth=(cfg.user, cfg.password))
@@ -97,6 +102,8 @@ def upsert_npa_document(
                 source=source,
                 path=path,
                 title=title,
+                original_path=original_path,
+                original_filename=original_filename,
                 norms=norms,
             )
     finally:

@@ -163,9 +163,50 @@ function renderList(elId, kind, files) {
 async function upload(kind) {
   const input = document.getElementById(kind === 'ps' ? 'psFiles' : 'npaFiles');
   if (!input.files.length) return;
-  const fd = new FormData();
-  for (const f of input.files) fd.append('files', f);
-  await fetch(`/api/upload?kind=${kind}`, { method: 'POST', body: fd });
+  // Upload in small batches to avoid platform/request-size quirks on Windows.
+  const files = Array.from(input.files);
+  console.log('selected files', files.map(f => ({ name: f.name, size: f.size })));
+  setStatus(`selected=${files.length}`);
+  const batchSize = 5;
+  let totalReceived = 0;
+  let totalSaved = 0;
+
+  async function uploadBatch(batch, i) {
+    const fd = new FormData();
+    for (const f of batch) fd.append('files', f);
+
+    setStatus(`upload: ${Math.min(i + batch.length, files.length)}/${files.length}`);
+    const r = await fetch(`/api/upload?kind=${kind}`, { method: 'POST', body: fd });
+    const txt = await r.text();
+    if (!r.ok) throw new Error(txt || r.statusText || 'upload failed');
+    const data = JSON.parse(txt);
+    console.log('upload batch result', { kind, batch: [i, i + batch.length], data });
+    const got = data && typeof data.received_count === 'number' ? data.received_count : 0;
+    const saved = Array.isArray(data.saved) ? data.saved.length : 0;
+    totalReceived += got;
+    totalSaved += saved;
+    setStatus(`upload: received=${totalReceived}, saved=${totalSaved}`);
+  }
+
+  for (let i = 0; i < files.length; i += batchSize) {
+    const batch = files.slice(i, i + batchSize);
+    try {
+      await uploadBatch(batch, i);
+    } catch (e) {
+      console.error('batch upload failed, fallback to single files', e);
+      setStatus(`upload: batch failed, trying single files...`);
+      for (let j = 0; j < batch.length; j++) {
+        const one = [batch[j]];
+        try {
+          await uploadBatch(one, i + j);
+        } catch (e2) {
+          console.error('single file upload failed', { file: one[0]?.name, e: e2 });
+          setStatus(`upload error: ${one[0]?.name || '(unknown)'}: ${String(e2)}`.slice(0, 160));
+          throw e2;
+        }
+      }
+    }
+  }
   input.value = '';
   await refreshLists();
 }

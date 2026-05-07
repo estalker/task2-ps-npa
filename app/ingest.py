@@ -5,6 +5,7 @@ import hashlib
 import os
 import re
 from pathlib import Path
+import json
 
 from tqdm import tqdm
 
@@ -84,6 +85,20 @@ def main() -> int:
 
     input_dir = Path(args.input)
     input_dir.mkdir(parents=True, exist_ok=True)
+    # best-effort: map stored (short) name -> original name from upload manifest
+    manifest: dict[str, str] = {}
+    mf = input_dir / ".upload_manifest.jsonl"
+    if mf.exists():
+        try:
+            for ln in mf.read_text(encoding="utf-8", errors="replace").splitlines():
+                try:
+                    obj = json.loads(ln)
+                    if isinstance(obj, dict) and obj.get("stored") and obj.get("original"):
+                        manifest[str(obj["stored"])] = str(obj["original"])
+                except Exception:
+                    continue
+        except Exception:
+            manifest = {}
 
     cfg = Neo4jConfig(uri=args.neo4j_uri, user=args.neo4j_user, password=args.neo4j_password)
     ensure_schema(cfg)
@@ -95,6 +110,7 @@ def main() -> int:
 
     for f in tqdm(files, desc="Ingesting"):
         print(f"[DOC] reading {f.name} ...", flush=True)
+        orig = manifest.get(f.name)
         doc_bytes = f.read_bytes()
         raw_text = extract_text_from_docx(f)
         print(f"[DOC] {f.name}: extracted {len(raw_text)} chars", flush=True)
@@ -144,11 +160,16 @@ def main() -> int:
                 except Exception as e:
                     print(f"[WARN] LLM extract failed for {f.name} chunk#{ch.index}: {e}")
 
+        # If upload used a shortened stored name, keep original separately.
+        # Also prefer original (human) filename for "path" when it exists.
+        effective_path = orig or str(f.resolve())
         upsert_document(
             cfg=cfg,
             doc_id=doc_id,
             source=args.doc_source,
-            path=str(f.resolve()),
+            path=effective_path,
+            original_path=orig,
+            original_filename=(orig.replace("\\", "/").split("/")[-1] if orig else None),
             raw_text=raw_text,
             extractions=extractions,
         )

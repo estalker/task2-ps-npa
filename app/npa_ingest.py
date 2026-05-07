@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import os
 from pathlib import Path
+import json
 
 from .npa_extract import extract_norm_segments
 from .npa_llm_extract import try_extract_npa_with_llm
@@ -40,6 +41,20 @@ def main() -> int:
 
     input_dir = Path(args.input)
     input_dir.mkdir(parents=True, exist_ok=True)
+    # best-effort: map stored (short) name -> original name from upload manifest
+    manifest: dict[str, str] = {}
+    mf = input_dir / ".upload_manifest.jsonl"
+    if mf.exists():
+        try:
+            for ln in mf.read_text(encoding="utf-8", errors="replace").splitlines():
+                try:
+                    obj = json.loads(ln)
+                    if isinstance(obj, dict) and obj.get("stored") and obj.get("original"):
+                        manifest[str(obj["stored"])] = str(obj["original"])
+                except Exception:
+                    continue
+        except Exception:
+            manifest = {}
 
     cfg = Neo4jConfig(uri=args.neo4j_uri, user=args.neo4j_user, password=args.neo4j_password)
     ensure_schema(cfg)
@@ -54,10 +69,11 @@ def main() -> int:
 
     for f in rtf_files:
         print(f"[NPA] extracting {f.name} ...", flush=True)
+        orig = manifest.get(f.name)
         doc_path = str(f.resolve())
         doc_bytes = f.read_bytes()
         doc_id = _doc_id_from_bytes("npa", doc_bytes)
-        title = f.stem
+        title = Path(orig).stem if orig else f.stem
 
         text = rtf_to_text(doc_bytes)
         norms = extract_norm_segments(doc_title=title, doc_path=doc_path, text=text)
@@ -129,6 +145,8 @@ def main() -> int:
             source="npa",
             path=doc_path,
             title=title,
+            original_path=orig,
+            original_filename=(orig.replace("\\", "/").split("/")[-1] if orig else None),
             norms=norms_payload,
         )
         print(f"[NPA] {f.name}: saved norms={len(norms_payload)}", flush=True)
