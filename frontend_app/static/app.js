@@ -235,6 +235,7 @@ async function rephraseRow(rowIdx) {
 
 function downloadCsv() { window.location.href = '/api/result.csv'; }
 function downloadXlsx() { window.location.href = '/api/result.xlsx'; }
+function downloadProjectionsXlsx() { window.location.href = '/api/projections.xlsx'; }
 
 function setTab(which) {
   const isResult = which === 'result';

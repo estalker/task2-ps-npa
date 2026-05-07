@@ -6,6 +6,7 @@ import hashlib
 import os
 import re
 import subprocess
+import tempfile
 from collections.abc import Callable
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -518,6 +519,120 @@ def projection(kind: PROJ_KIND = Query("match"), limit: int = Query(400, ge=50, 
         drv.close()
 
 
+def _stream_file_bytes(path: Path, *, chunk_size: int = 1024 * 1024):
+    with path.open("rb") as f:
+        while True:
+            b = f.read(chunk_size)
+            if not b:
+                break
+            yield b
+
+
+def _projection_query(kind: PROJ_KIND) -> tuple[list[str], str, Callable[[dict], list[str]]]:
+    """
+    Shared query definitions for projections.
+    Note: for NPA projection we keep the same cell truncation as the UI (req_text/norm_text).
+    """
+    if kind == "ps":
+        header = ["ps_id", "ps_path", "otf_code", "otf_name", "role_name", "workscope", "involves_score", "involves_keywords"]
+        q = """
+        MATCH (ps:Document {source:'profstandard'})-[:HAS_OTF]->(o:OTF)
+        OPTIONAL MATCH (o)-[:HAS_ROLE]->(r:Role)
+        OPTIONAL MATCH (o)-[inv:INVOLVES]->(w:WorkScope)
+        RETURN ps.id AS ps_id, ps.path AS ps_path,
+               o.code AS otf_code, o.name AS otf_name,
+               r.name AS role_name,
+               w.name AS workscope, inv.score AS involves_score, inv.keywords AS involves_keywords
+        ORDER BY ps.updated_at DESC, o.code, r.name, w.name
+        """
+
+        def row(rec: dict) -> list[str]:
+            return [
+                rec.get("ps_id") or "",
+                rec.get("ps_path") or "",
+                rec.get("otf_code") or "",
+                rec.get("otf_name") or "",
+                rec.get("role_name") or "",
+                rec.get("workscope") or "",
+                "" if rec.get("involves_score") is None else str(rec.get("involves_score")),
+                ",".join([str(x) for x in (rec.get("involves_keywords") or []) if x]),
+            ]
+
+        return header, q, row
+
+    if kind == "npa":
+        header = ["npa_id", "npa_title", "norm_number", "workscope", "req_type", "req_text", "norm_text"]
+        q = """
+        MATCH (n:Norm)-[:MENTIONED_IN]->(d:Document {source:'npa'})
+        OPTIONAL MATCH (n)-[:APPLIES_TO]->(w:WorkScope)
+        OPTIONAL MATCH (n)-[:SETS_REQUIREMENT]->(r:Requirement)
+        RETURN d.id AS npa_id, d.title AS npa_title,
+               n.number AS norm_number, w.name AS workscope,
+               r.type AS req_type, r.text AS req_text,
+               n.text AS norm_text
+        ORDER BY d.updated_at DESC, n.number
+        """
+
+        def row(rec: dict) -> list[str]:
+            return [
+                rec.get("npa_id") or "",
+                rec.get("npa_title") or "",
+                rec.get("norm_number") or "",
+                rec.get("workscope") or "",
+                rec.get("req_type") or "",
+                (rec.get("req_text") or "")[:400],
+                (rec.get("norm_text") or "")[:500],
+            ]
+
+        return header, q, row
+
+    # match
+    header = [
+        "npa_title",
+        "norm_number",
+        "workscope",
+        "ps_id",
+        "otf_code",
+        "otf_name",
+        "match_via_workscope",
+        "involves_score",
+        "involves_keywords",
+    ]
+    q = """
+    MATCH (n:Norm)-[m:MATCHES_OTF]->(o:OTF)
+    OPTIONAL MATCH (n)-[:MENTIONED_IN]->(nd:Document {source:'npa'})
+    OPTIONAL MATCH (o)<-[:HAS_OTF]-(pd:Document {source:'profstandard'})
+    OPTIONAL MATCH (n)-[:APPLIES_TO]->(w:WorkScope)
+    OPTIONAL MATCH (o)-[inv:INVOLVES]->(w2:WorkScope {name: coalesce(w.name, m.via_workscope)})
+    RETURN
+      nd.title AS npa_title,
+      n.number AS norm_number,
+      coalesce(w.name, m.via_workscope) AS workscope,
+      pd.id AS ps_id,
+      o.code AS otf_code,
+      o.name AS otf_name,
+      m.via_workscope AS match_via_workscope,
+      inv.score AS involves_score,
+      inv.keywords AS involves_keywords
+    ORDER BY n.number, o.code
+    """
+
+    def row(rec: dict) -> list[str]:
+        return [
+            rec.get("npa_title") or "",
+            rec.get("norm_number") or "",
+            rec.get("workscope") or "",
+            rec.get("ps_id") or "",
+            rec.get("otf_code") or "",
+            rec.get("otf_name") or "",
+            rec.get("match_via_workscope") or "",
+            "" if rec.get("involves_score") is None else str(rec.get("involves_score")),
+            ",".join([str(x) for x in (rec.get("involves_keywords") or []) if x]),
+        ]
+
+    return header, q, row
+
+
 def _llm_subpayload(payload: dict, key: str) -> dict:
     b = payload.get(key)
     return b if isinstance(b, dict) else {}
@@ -923,4 +1038,56 @@ def result_xlsx() -> Response:
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=list_mandatory_ps.xlsx"},
     )
+
+
+@app.get("/api/projections.xlsx")
+def projections_xlsx() -> StreamingResponse:
+    """
+    Export graph projections into a single .xlsx with 3 sheets: ПС, НПА, MATCH.
+    No row limit (except Excel's own maximum).
+    """
+    from openpyxl import Workbook
+
+    _ensure_dirs()
+    drv = _neo4j_driver()
+    tmp_path: Path | None = None
+    try:
+        wb = Workbook(write_only=True)
+        try:
+            if wb.worksheets:
+                wb.remove(wb.worksheets[0])
+        except Exception:
+            pass
+
+        db = os.getenv("NEO4J_DATABASE", "neo4j").strip() or "neo4j"
+        with drv.session(database=db) as s:
+            for kind, title in [("ps", "ПС"), ("npa", "НПА"), ("match", "MATCH")]:
+                header, q, row_fn = _projection_query(kind)  # type: ignore[arg-type]
+                ws = wb.create_sheet(title=title)
+                ws.append(header)
+                for rec in s.run(q):
+                    ws.append(row_fn(rec))
+
+        fd, tmp_name = tempfile.mkstemp(prefix="projections_", suffix=".xlsx", dir=str(OUTPUT_DIR))
+        os.close(fd)
+        tmp_path = Path(tmp_name)
+        wb.save(tmp_path)
+
+        def _body():
+            assert tmp_path is not None
+            try:
+                yield from _stream_file_bytes(tmp_path)
+            finally:
+                try:
+                    tmp_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+        return StreamingResponse(
+            _body(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=projections.xlsx"},
+        )
+    finally:
+        drv.close()
 
