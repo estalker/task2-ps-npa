@@ -21,6 +21,8 @@ from charset_normalizer import from_bytes
 
 GOOGLE_SEARCH_URL = "https://www.google.com/search"
 YANDEX_SEARCH_URL = "https://yandex.ru/search/"
+PRAVO_SEARCH_URL = "http://pravo.gov.ru/search/"
+PRAVO_IPS_BASE = "http://pravo.gov.ru/proxy/ips/"
 
 
 def _utc_now_iso() -> str:
@@ -518,12 +520,85 @@ class DownloadResult:
 
 def download_file(session: requests.Session, url: str, dest_path: Path, *, timeout: int = 60) -> None:
     dest_path.parent.mkdir(parents=True, exist_ok=True)
+    # Спец-случай: IPS `savertf` на деле часто отдаёт MHTML (multipart/related),
+    # который Word откроет, но это не "чистый" RTF. Мы извлекаем HTML часть и
+    # генерируем простой RTF с текстом.
+    if url.startswith(PRAVO_IPS_BASE) and "savertf=" in url:
+        import quopri
+
+        r = session.get(url, timeout=timeout, allow_redirects=True)
+        r.raise_for_status()
+        data = r.content
+        if data.startswith(b"MIME-Version:") and b"multipart/related" in data[:400]:
+            # boundary="...."
+            m = re.search(br'boundary="([^"]+)"', data[:1000], flags=re.IGNORECASE)
+            boundary = (m.group(1) if m else b"").strip()
+            if boundary:
+                parts = data.split(b"--" + boundary)
+            else:
+                parts = [data]
+
+            html_bytes: Optional[bytes] = None
+            for part in parts:
+                if b"Content-Type: text/html" not in part and b"Content-Type: text/html;" not in part:
+                    continue
+                # отделяем заголовки части от тела
+                if b"\r\n\r\n" in part:
+                    hdr, body = part.split(b"\r\n\r\n", 1)
+                elif b"\n\n" in part:
+                    hdr, body = part.split(b"\n\n", 1)
+                else:
+                    continue
+                # quoted-printable
+                if b"quoted-printable" in hdr.lower():
+                    body = quopri.decodestring(body)
+                html_bytes = body
+                break
+
+            if html_bytes:
+                html_text = html_bytes.decode("cp1251", errors="ignore")
+                soup = BeautifulSoup(html_text, "lxml")
+                text = soup.get_text("\n", strip=True)
+                rtf = _text_to_simple_rtf(text)
+                dest_path.write_bytes(rtf)
+                return
+
+        # fallback: сохраняем как есть
+        dest_path.write_bytes(data)
+        return
+
     with session.get(url, timeout=timeout, stream=True, allow_redirects=True) as r:
         r.raise_for_status()
         with open(dest_path, "wb") as f:
             for chunk in r.iter_content(chunk_size=1024 * 128):
                 if chunk:
                     f.write(chunk)
+
+
+def _text_to_simple_rtf(text: str) -> bytes:
+    # Минимальный RTF. Для символов вне ASCII используем \uN? чтобы Word открыл корректно.
+    def esc_char(ch: str) -> str:
+        code = ord(ch)
+        if ch == "\\":
+            return r"\\"
+        if ch == "{":
+            return r"\{"
+        if ch == "}":
+            return r"\}"
+        if ch == "\n":
+            return r"\par" + "\n"
+        if 32 <= code <= 126:
+            return ch
+        # RTF uses signed 16-bit for \u
+        if code > 32767:
+            code = code - 65536
+        return rf"\u{code}?"
+
+    # нормализуем переводы строк
+    text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    body = "".join(esc_char(ch) for ch in text)
+    rtf = "{\\rtf1\\ansi\\deff0\n" + body + "\n}"
+    return rtf.encode("ascii", errors="ignore")
 
 
 def _is_retryable_download_error(err: Exception) -> bool:
@@ -572,6 +647,239 @@ def yandex_candidates(session: requests.Session, query_soft: str, *, timeout: in
 
     # Prefer direct .rtf
     out.sort(key=lambda u: 0 if urlparse(u).path.lower().endswith(".rtf") else 1)
+    return out
+
+
+def _quote_plus_cp1251(text: str) -> str:
+    # В IPS intelsearch использует windows-1251
+    return quote_plus(text.encode("cp1251", errors="ignore"))
+
+
+def _norm_tokens_ru(s: str) -> set[str]:
+    s = s.lower()
+    s = re.sub(r"[^0-9a-zа-яё]+", " ", s, flags=re.IGNORECASE)
+    s = re.sub(r"\s+", " ", s).strip()
+    if not s:
+        return set()
+    toks = [t for t in s.split(" ") if len(t) >= 2]
+    return set(toks)
+
+
+def _jaccard(a: set[str], b: set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    inter = len(a & b)
+    union = len(a | b)
+    return inter / max(1, union)
+
+
+def pravo_ips_candidates(session: requests.Session, query_soft: str, *, timeout: int, max_results: int = 10) -> list[str]:
+    """
+    Поиск через `http://pravo.gov.ru/proxy/ips/` (без JS).
+    Возвращает кандидаты URL'ов на скачивание RTF (`?savertf=...`), отсортированные по релевантности.
+    """
+    intel = _quote_plus_cp1251(query_soft)
+    list_url = f"{PRAVO_IPS_BASE}?list_itself=&bpas=cd00000&intelsearch={intel}&sort=-1&page=firstlast"
+    r = session.get(list_url, timeout=timeout, allow_redirects=True)
+    r.raise_for_status()
+    # Важно: страница в cp1251
+    html = r.content.decode("cp1251", errors="ignore")
+    soup = BeautifulSoup(html, "lxml")
+
+    q_toks = _norm_tokens_ru(query_soft)
+    items: list[tuple[float, int, str, str]] = []
+    # score, weight, savertf_url, title
+
+    for tbl in soup.select("table.list_elem"):
+        a = tbl.select_one("a[href*='docbody='][href*='nd=']")
+        if not a:
+            continue
+        href = (a.get("href") or "").strip()
+        if not href:
+            continue
+        title = " ".join(a.get_text(" ", strip=True).split())
+        # второе название часто в <span class="bold">...</span> рядом
+        b2 = tbl.select_one("span.bold")
+        if b2:
+            t2 = " ".join(b2.get_text(" ", strip=True).split())
+            if t2 and t2.lower() not in title.lower():
+                title = f"{t2} — {title}"
+
+        # вес: "Вес:100"
+        weight = 0
+        wnode = tbl.find(string=re.compile(r"\bВес\s*:\s*\d+", flags=re.IGNORECASE))
+        if wnode:
+            m = re.search(r"\bВес\s*:\s*(\d+)", str(wnode), flags=re.IGNORECASE)
+            if m:
+                try:
+                    weight = int(m.group(1))
+                except Exception:
+                    weight = 0
+
+        abs_doc = urljoin(PRAVO_IPS_BASE, href)
+        qs = parse_qs(urlparse(abs_doc).query)
+        nd = (qs.get("nd", [""])[0] or "").strip()
+        link_id = (qs.get("link_id", ["0"])[0] or "0").strip()
+        bpa = (qs.get("bpa", ["cd00000"])[0] or "cd00000").strip()
+        bpas = (qs.get("bpas", ["cd00000"])[0] or "cd00000").strip()
+        if not nd:
+            continue
+
+        savertf = f"{PRAVO_IPS_BASE}?savertf=&link_id={quote_plus(link_id)}&nd={quote_plus(nd)}&bpa={quote_plus(bpa)}&bpas={quote_plus(bpas)}&page=all"
+
+        sim = _jaccard(q_toks, _norm_tokens_ru(title))
+        score = (weight / 100.0) + sim
+        items.append((score, weight, savertf, title))
+
+    items.sort(key=lambda t: (t[0], t[1]), reverse=True)
+    out: list[str] = []
+    seen: set[str] = set()
+    for _, __, u, _title in items[:max_results]:
+        if u in seen:
+            continue
+        seen.add(u)
+        out.append(u)
+    return out
+
+
+def pravo_playwright_candidates(query_soft: str, *, timeout_ms: int = 60000) -> list[str]:
+    """
+    Использует реальный браузер (Playwright) чтобы открыть `pravo.gov.ru/search/`,
+    выполнить поиск и забрать ссылки из блока результатов.
+    Это нужно, потому что ajax-эндпоинты могут быть недоступны напрямую из requests.
+    """
+    try:
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError  # type: ignore
+        from playwright.sync_api import sync_playwright  # type: ignore
+    except Exception:
+        return []
+
+    headless = os.getenv("NPA_HEADFUL", "").strip() not in ("1", "true", "yes", "on")
+    profile_dir = os.getenv("NPA_PROFILE_DIR", "").strip() or str(Path(__file__).with_name(".pw_profile"))
+
+    html = ""
+    try:
+        with sync_playwright() as p:
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=profile_dir,
+                headless=headless,
+                locale="ru-RU",
+            )
+            try:
+                context.set_default_timeout(timeout_ms)
+                context.set_default_navigation_timeout(timeout_ms)
+            except Exception:
+                pass
+            page = context.new_page()
+            page.goto(PRAVO_SEARCH_URL, wait_until="domcontentloaded", timeout=timeout_ms)
+
+            # Переключаемся на вкладку "Официальное опубликование"
+            try:
+                page.click("a[href='#search-tab2']", timeout=5000)
+            except Exception:
+                pass
+
+            # Иногда tab-контент подгружается лениво — попробуем дождаться поля ввода
+            try:
+                page.wait_for_selector("#pub-search-input", timeout=15000)
+            except Exception:
+                pass
+
+            # Вводим запрос и запускаем поиск
+            try:
+                page.fill("#pub-search-input", query_soft, timeout=5000)
+                page.click("#search-tab2 button.search_button", timeout=5000)
+            except Exception:
+                # fallback: submit form
+                try:
+                    page.fill("#pub-search-input", query_soft, timeout=5000)
+                    page.keyboard.press("Enter")
+                except Exception:
+                    pass
+
+            # Ждём заполнения блока результатов
+            try:
+                page.wait_for_function(
+                    "document.querySelector('#id-pub-search-result') && document.querySelector('#id-pub-search-result').innerText.trim().length > 0",
+                    timeout=timeout_ms,
+                )
+            except Exception:
+                pass
+
+            # Если мы в headful, но результатов нет — дадим пользователю возможность
+            # вручную "дожать" страницу (если требуется внутренняя сеть/проверка) и продолжить.
+            if not headless:
+                try:
+                    txt = page.inner_text("#id-pub-search-result")
+                except Exception:
+                    txt = ""
+                if not (txt or "").strip():
+                    print(
+                        "[INFO] pravo.gov.ru: results are empty. "
+                        "If a verification or network prompt is shown in the opened browser, resolve it until results appear, then press Enter here to continue."
+                    )
+                    try:
+                        input()
+                    except KeyboardInterrupt:
+                        context.close()
+                        return []
+
+            # Соберём ссылки прямо из DOM (надежнее, чем inner_html)
+            try:
+                anchors = page.locator("#id-pub-search-result a[href]")
+                n = anchors.count()
+                hrefs: list[str] = []
+                for i in range(min(n, 200)):
+                    h = anchors.nth(i).get_attribute("href") or ""
+                    h = h.strip()
+                    if h:
+                        hrefs.append(h)
+                html = "\n".join(hrefs)
+            except Exception:
+                try:
+                    html = page.inner_html("#id-pub-search-result")
+                except Exception:
+                    try:
+                        html = page.content()
+                    except Exception:
+                        html = ""
+            context.close()
+    except (PlaywrightTimeoutError, KeyboardInterrupt):
+        return []
+    except Exception:
+        return []
+
+    if not html:
+        return []
+
+    links: list[str] = []
+    if "\n" in html and "http" in html and "<" not in html:
+        # Это уже список href'ов, собранный из DOM
+        for line in html.splitlines():
+            href = line.strip()
+            if not href:
+                continue
+            if href.startswith("/"):
+                href = "http://pravo.gov.ru" + href
+            links.append(href)
+    else:
+        # Парсим ссылки из html блока
+        soup = BeautifulSoup(html, "lxml")
+        for a in soup.select("a[href]"):
+            href = (a.get("href") or "").strip()
+            if not href:
+                continue
+            if href.startswith("/"):
+                href = "http://pravo.gov.ru" + href
+            links.append(href)
+
+    # дедуп
+    out: list[str] = []
+    seen: set[str] = set()
+    for u in links:
+        if u not in seen:
+            seen.add(u)
+            out.append(u)
     return out
 
 
@@ -643,8 +951,29 @@ def choose_rtf_url(
     """
     engine = (engine or "auto").strip().lower()
 
-    if engine not in ("auto", "google", "yandex"):
+    if engine not in ("auto", "google", "yandex", "pravo"):
         engine = "auto"
+
+    # Pravo.gov.ru (engine=pravo) — отдельный путь, без google/yandex
+    if engine == "pravo":
+        # 1) Прямой IPS endpoint (веса/выдача, без JS)
+        try:
+            ips = pravo_ips_candidates(session, query_soft, timeout=timeout, max_results=max_results_to_probe)
+        except Exception:
+            ips = []
+        if ips:
+            return ips[0], "pravo_ips_savertf"
+
+        # 2) Fallback: обычная страница поиска (JS) через Playwright
+        links = pravo_playwright_candidates(query_soft, timeout_ms=timeout * 1000)
+        for u in links:
+            if is_rtf_url(u):
+                return u, "pravo_direct_rtf"
+        for u in links[:max_results_to_probe]:
+            rtf = find_rtf_on_page(session, u, timeout=timeout)
+            if rtf:
+                return rtf, "pravo_rtf_found_on_result_page"
+        return None, "pravo_not_found"
 
     if engine in ("auto", "google"):
     # 1) Сначала пытаемся найти прямую ссылку на rtf в выдаче
@@ -767,16 +1096,18 @@ def run_one(
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--list", default=str(Path(__file__).with_name("npa_list.txt")), help="Path to npa_list.txt")
-    ap.add_argument("--out", default=str(Path(__file__).with_name("npa_download")), help="Output directory for downloads")
-    ap.add_argument("--report", default=str(Path(__file__).with_name("download_report.jsonl")), help="JSONL report path")
+    ap.add_argument("--kind", choices=["npa", "ps"], default="npa", help="Which list to process: npa_list.txt or ps_list.txt")
+    # If omitted, defaults depend on --kind
+    ap.add_argument("--list", default="", help="Path to list file (default depends on --kind)")
+    ap.add_argument("--out", default="", help="Output directory for downloads (default depends on --kind)")
+    ap.add_argument("--report", default="", help="JSONL report path (default depends on --kind)")
     ap.add_argument("--timeout", type=int, default=30, help="HTTP timeout seconds")
     ap.add_argument("--sleep-min", type=float, default=2.0, help="Min sleep between queries (seconds)")
     ap.add_argument("--sleep-max", type=float, default=5.0, help="Max sleep between queries (seconds)")
     ap.add_argument("--limit", type=int, default=0, help="Limit number of lines to process (0 = all)")
     ap.add_argument("--overwrite", action="store_true", help="Overwrite existing files")
     ap.add_argument("--no-playwright", action="store_true", help="Disable Playwright fallback")
-    ap.add_argument("--engine", choices=["auto", "yandex", "google"], default="auto", help="Search engine preference")
+    ap.add_argument("--engine", choices=["auto", "yandex", "google", "pravo"], default="auto", help="Search engine preference")
     ap.add_argument(
         "--retry-from-report",
         choices=["off", "failed", "ssl", "all_failed"],
@@ -785,10 +1116,36 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    list_path = Path(args.list)
-    out_dir = Path(args.out)
-    report_path = Path(args.report)
+    base_dir = Path(__file__).parent
+    if args.kind == "ps":
+        default_list = base_dir / "ps_list.txt"
+        default_out = base_dir / "ps_download"
+        default_report = base_dir / "download_report_ps.jsonl"
+    else:
+        default_list = base_dir / "npa_list.txt"
+        default_out = base_dir / "npa_download"
+        default_report = base_dir / "download_report.jsonl"
+
+    list_path = Path(args.list) if str(args.list).strip() else default_list
+    out_dir = Path(args.out) if str(args.out).strip() else default_out
+    report_path = Path(args.report) if str(args.report).strip() else default_report
+
+    if not list_path.exists():
+        print(f"[ERROR] List file not found: {list_path}")
+        return 2
+
+    # Для `--engine pravo` — отдельная подпапка и отдельный отчёт,
+    # чтобы уже скачанное из других источников не превращалось в SKIP.
+    if args.engine == "pravo":
+        out_dir = out_dir / "pravo.gov.ru"
+        # если пользователь не задал кастомный report — используем отдельный для pravo
+        if not str(args.report).strip():
+            if args.kind == "ps":
+                report_path = report_path.with_name("download_report_ps_pravo.jsonl")
+            else:
+                report_path = report_path.with_name("download_report_pravo.jsonl")
     report_path.parent.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     session = build_session()
 
@@ -811,7 +1168,7 @@ def main() -> int:
                 os.environ["NPA_DISABLE_PLAYWRIGHT"] = "1"
             query_soft = soften_query(q)
             key = _sha1(query_soft)
-            if key in done or key in seen_in_run:
+            if not args.overwrite and (key in done or key in seen_in_run):
                 print(f"[SKIP] {query_soft} (already downloaded)")
                 continue
             seen_in_run.add(key)

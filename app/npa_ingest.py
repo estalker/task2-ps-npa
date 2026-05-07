@@ -87,7 +87,11 @@ def main() -> int:
                     refined.append(ns)
                     continue
                 print(f"[LLM] norm {ns.norm_number}: parsing ...", flush=True)
-                llm = try_extract_npa_with_llm(ns.norm_text)
+                try:
+                    llm = try_extract_npa_with_llm(ns.norm_text)
+                except Exception as e:
+                    print(f"[WARN] LLM parse failed for norm {ns.norm_number}: {type(e).__name__}: {e}", flush=True)
+                    llm = None
                 if not llm:
                     refined.append(ns)
                     continue

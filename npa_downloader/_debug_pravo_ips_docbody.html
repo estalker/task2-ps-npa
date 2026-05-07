@@ -1,0 +1,796 @@
+<html>
+<head>
+<title>Градостроительный кодекс Российской Федерации</title>
+<meta http-equiv="Content-Type" content="text/html; charset=windows-1251" />
+<link rel="stylesheet" type="text/css" href="?style.css" />
+<link rel="stylesheet" type="text/css" href="?style_sets.css" />
+<link rel="stylesheet" type="text/css" href="?layout.css" />
+<style>
+	.sh1, .sh2 	{ 
+		color:#ffffff; 
+		font-weight:bold; 
+		font-size:1.3em; 
+	}
+	table.global_header td.doc_editions 	{ 
+		padding:0px 7px 1px 0px; 
+		text-align:right; 
+		width: 10px; 
+	}
+	#xdoc_toolbar {
+		height: 100px;
+		vertical-align: top;
+	}
+	
+	#xdoc_content {
+		vertical-align: middle;
+	}
+	
+	#xdoc_footer {	
+		vertical-align: bottom;
+	}
+</style>
+<script type="text/javascript" src="?json.js" charset="windows-1251"></script>
+<script type="text/javascript" src="?script.js" charset="windows-1251"></script>
+<script>
+	function manyFragmentsComposer(link) {
+		window.open(link);
+	}
+	
+	function initMessage() {
+		var ecpName = 'infostrdsign';
+		var redactionName = 'infostr0';
+		var countMessage = 0;
+		var contentsName = 'infostrcontents';
+		
+		if(pCookies['show_sign_status'] == '1')
+			document.getElementById(ecpName).style.display='';
+				
+		if(document.getElementById(contentsName)) {
+			if(document.getElementById(contentsName).style.display == '')
+				countMessage++;
+		}
+		if(document.getElementById(ecpName)) {
+			if(document.getElementById(ecpName).style.display == '')
+				countMessage++;
+		}
+		if(document.getElementById(redactionName)) {
+			if(document.getElementById(redactionName).style.display == '')
+				countMessage++;
+		}
+		if(countMessage == 0) {
+			 
+				document.getElementById('xdoc_toolbar').style.height='35px';
+				
+		} else if(countMessage == 1) {
+			if(document.getElementById(contentsName) != null) {
+				if(document.getElementById(contentsName).style.display == '') {
+					document.getElementById('xdoc_toolbar').style.height='120px';
+				} else {
+					document.getElementById('xdoc_toolbar').style.height='70px';
+				}
+			} else {
+				document.getElementById('xdoc_toolbar').style.height='70px';
+			}
+			
+				document.getElementById('xdoc_toolbar').style.height='70px';
+				
+		} else if(countMessage == 2) {
+			if(document.getElementById(contentsName) != null) {
+				if(document.getElementById(contentsName).style.display == '')
+					document.getElementById('xdoc_toolbar').style.height='120px';
+				else
+				
+					document.getElementById('xdoc_toolbar').style.height='100px';
+					
+			}
+		}
+	}
+	function setCookieSignStatus(value){
+		var today = new Date();
+		today.setDate(today.getDate() + 7);
+		document.cookie="show_sign_status" + "=" + value + "; expires=" + today.toGMTString();
+		parseCookies();
+	}
+	function delCookieSignStatus(){
+		var today = new Date();
+		today.setDate(today.getDate() + 7);
+		document.cookie="show_sign_status" + "=;";
+		pCookies = new Array();
+		parseCookies();
+	}
+	function LinkParseHash(){
+			var cells = document.getElementsByTagName("a"); 
+			for (var i = 0; i < cells.length; i++) { 
+				var status = cells[i].setAttribute("target","_self"); 
+			}
+	}
+</script>
+</head>
+
+<body style="overflow:hidden;" onload="document.link_id=0; document.isBodyLoaded = true; checkFrame(); 
+			document.getElementById('backlink').style.display='none';
+			top.closeOthers=null; initMessage();''">
+<iframe id="tempframe" name="tempframe" src=""about:blank" style="position:absolute; top: -500; left: -500; visibility: hidden; height: 1px; width: 1px;"></iframe>
+<table class="root">
+<tr>
+<td class="header">
+<div style="position:relative;height:37px">
+
+<!-- BEGIN шапка -->
+
+	<table class="global_header" style="position:absolute;top:0; left:0">
+	<tr>
+	<td class="pics">
+			<div id="doc_pic_frame_maximize" class="vis"><img src="?pic_hide2left.gif" onClick="maximizeDocFrame('')" alt="Развернуть панель" title="Развернуть панель" /></div>
+			<div id="doc_pic_frame_minimize" class="inv"><img src="?pic_hide2right.gif" onClick="restoreDocFrame('')" alt="Свернуть панель" title="Свернуть панель" /></div>
+		</td>	<td class="text">
+<nobr>
+<span class="sh2">Текст документа:</span>
+</nobr>
+	</td>
+	<td class="help">
+<nobr>
+	<a target='_top' href='?start_search&fattrib=1' class="white"><img alt="на главную" title="На главную" src="?pic_home.gif" align="absmiddle" /></a>&nbsp;
+	<a href="?help_common.html" class="white" target="_blank"><img alt="Справка" title="справка" src="?pic_help.gif" align="absmiddle" /></a>&nbsp;
+	</nobr>  </td>
+	<td class="doc_editions">
+<select name="doc_editions" onchange="ChangeSelRDK(this, document.all['last_select_ed'], '')"><option value='0,102090643' >Исходная редакция</option><option value='1,102090643'  class='blue'>1 - от 22.07.2005 № 117-ФЗ (изм.)</option><option value='2,102090643'  class='blue'>2 - от 31.12.2005 № 199-ФЗ (изм.)</option><option value='3,102090643'  class='blue'>3 - от 31.12.2005 № 210-ФЗ (изм.)</option><option value='4,102090643'  class='blue'>4 - от 03.06.2006 № 73-ФЗ (изм.)</option><option value='5,102090643'  class='blue'>5 - от 27.07.2006 № 143-ФЗ (изм.)</option><option value='6,102090643'  class='blue'>6 - от 04.12.2006 № 201-ФЗ (изм.)</option><option value='7,102090643'  class='blue'>7 - от 18.12.2006 № 232-ФЗ (изм.)</option><option value='8,102090643'  class='blue'>8 - от 29.12.2006 № 258-ФЗ (изм.)</option><option value='9,102090643'  class='blue'>9 - от 10.05.2007 № 69-ФЗ (изм.)</option><option value='10,102090643'  class='blue'>10 - от 24.07.2007 № 215-ФЗ (изм.)</option><option value='11,102090643'  class='blue'>11 - от 30.10.2007 № 240-ФЗ (изм.)</option><option value='12,102090643'  class='blue'>12 - от 08.11.2007 № 257-ФЗ (изм.)</option><option value='13,102090643'  class='blue'>13 - от 04.12.2007 № 324-ФЗ (изм.)</option><option value='14,102090643'  class='blue'>14 - от 13.05.2008 № 66-ФЗ (изм.)</option><option value='15,102090643'  class='blue'>15 - от 16.05.2008 № 75-ФЗ (изм.)</option><option value='16,102090643'  class='blue'>16 - от 14.07.2008 № 118-ФЗ (изм.)</option><option value='17,102090643'  class='blue'>17 - от 22.07.2008 № 148-ФЗ (изм.)</option><option value='18,102090643'  class='blue'>18 - от 23.07.2008 № 160-ФЗ (изм.)</option><option value='19,102090643'  class='blue'>19 - от 25.12.2008 № 281-ФЗ (изм.)</option><option value='20,102090643'  class='blue'>20 - от 30.12.2008 № 309-ФЗ (изм.)</option><option value='21,102090643'  class='blue'>21 - от 17.07.2009 № 164-ФЗ (изм.)</option><option value='22,102090643'  class='blue'>22 - от 23.11.2009 № 261-ФЗ (изм.)</option><option value='23,102090643'  class='blue'>23 - от 27.12.2009 № 343-ФЗ (изм.)</option><option value='n'  class='blue'>24 - от 27.07.2010 № 226-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>25 - от 27.07.2010 № 240-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>26 - от 22.11.2010 № 305-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>27 - от 29.11.2010 № 314-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>28 - от 20.03.2011 № 41-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>29 - от 21.04.2011 № 69-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>30 - от 01.07.2011 № 169-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>31 - от 11.07.2011 № 190-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>32 - от 11.07.2011 № 200-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>33 - от 18.07.2011 № 215-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>34 - от 18.07.2011 № 224-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>35 - от 18.07.2011 № 242-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>36 - от 18.07.2011 № 243-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>37 - от 19.07.2011 № 246-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>38 - от 21.07.2011 № 257-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>39 - от 28.11.2011 № 337-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>40 - от 30.11.2011 № 364-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>41 - от 06.12.2011 № 401-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>42 - от 25.06.2012 № 93-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>43 - от 20.07.2012 № 120-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>44 - от 28.07.2012 № 133-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>45 - от 12.11.2012 № 179-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>46 - от 30.12.2012 № 289-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>47 - от 30.12.2012 № 294-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>48 - от 30.12.2012 № 318-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>49 - от 04.03.2013 № 21-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>50 - от 04.03.2013 № 22-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>51 - от 05.04.2013 № 43-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>52 - от 07.06.2013 № 113-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>53 - от 02.07.2013 № 185-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>54 - от 02.07.2013 № 188-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>55 - от 23.07.2013 № 207-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>56 - от 23.07.2013 № 247-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>57 - от 21.10.2013 № 282-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>58 - от 28.12.2013 № 396-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>59 - от 28.12.2013 № 418-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>60 - от 02.04.2014 № 65-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>61 - от 20.04.2014 № 80-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>62 - от 05.05.2014 № 131-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>63 - от 23.06.2014 № 171-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>64 - от 28.06.2014 № 180-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>65 - от 28.06.2014 № 181-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>66 - от 21.07.2014 № 217-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>67 - от 21.07.2014 № 219-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>68 - от 21.07.2014 № 224-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>69 - от 14.10.2014 № 307-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>70 - от 22.10.2014 № 315-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>71 - от 22.10.2014 № 320-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>72 - от 24.11.2014 № 359-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>73 - от 29.12.2014 № 456-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>74 - от 29.12.2014 № 458-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>75 - от 29.12.2014 № 485-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>76 - от 31.12.2014 № 499-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>77 - от 31.12.2014 № 519-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>78 - от 31.12.2014 № 533-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>79 - от 20.04.2015 № 102-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>80 - от 29.06.2015 № 176-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>81 - от 13.07.2015 № 213-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>82 - от 13.07.2015 № 216-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>83 - от 13.07.2015 № 224-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>84 - от 13.07.2015 № 252-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>85 - от 13.07.2015 № 263-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>86 - от 28.11.2015 № 339-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>87 - от 29.12.2015 № 402-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>88 - от 30.12.2015 № 459-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>89 - от 23.06.2016 № 198-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>90 - от 03.07.2016 № 315-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>91 - от 03.07.2016 № 368-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>92 - от 03.07.2016 № 369-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>93 - от 03.07.2016 № 370-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>94 - от 03.07.2016 № 372-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>95 - от 03.07.2016 № 373-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>96 - от 19.12.2016 № 445-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>97 - от 03.07.2016 № 361-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>98 - от 03.07.2016 № 371-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>99 - от 07.03.2017 № 31-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>100 - от 18.06.2017 № 126-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>101 - от 01.07.2017 № 135-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>102 - от 26.07.2017 № 191-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>103 - от 29.07.2017 № 218-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>104 - от 29.07.2017 № 222-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>105 - от 29.07.2017 № 280-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>106 - от 29.12.2017 № 455-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>107 - от 29.12.2017 № 463-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>108 - от 31.12.2017 № 506-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>109 - от 31.12.2017 № 507-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>110 - от 23.04.2018 № 89-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>111 - от 03.08.2018 № 312-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>112 - от 03.08.2018 № 321-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>113 - от 03.08.2018 № 330-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>114 - от 03.08.2018 № 340-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>115 - от 03.08.2018 № 342-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>116 - от 03.08.2018 № 341-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>117 - от 03.08.2018  (изм.)(не готова)</option><option value='n'  class='blue'>118 - от 29.12.2017 № 442-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>119 - от 29.12.2017 № 443-ФЗ (изм.)(не готова)</option><option value='n'  class='blue'>120 - от 29.07.2017 № 217-ФЗ (изм.)(не готова)</option><option value='121,102090643'  class='blue'>121 - от 03.08.2018  (изм.)</option><option value='122,102090643'  class='blue'>122 - от 27.06.2019 № 151-ФЗ (изм.)</option><option value='123,102090643'  class='blue'>123 - от 03.08.2018  (изм.)</option><option value='124,102090643'  class='blue'>124 - от 27.12.2018 № 538-ФЗ (изм.)</option><option value='125,102090643'  class='blue'>125 - от 02.08.2019 № 283-ФЗ (изм.)</option><option value='126,102090643'  class='blue'>126 - от 02.08.2019 № 294-ФЗ (изм.)</option><option value='127,102090643'  class='blue'>127 - от 26.07.2019 № 195-ФЗ (изм.)</option><option value='128,102090643'  class='blue'>128 - от 16.12.2019 № 440-ФЗ (изм.)</option><option value='129,102090643'  class='blue'>129 - от 27.06.2019  (изм.)</option><option value='130,102090643'  class='blue'>130 - от 27.12.2019 № 472-ФЗ (изм.)</option><option value='131,102090643'  class='blue'>131 - от 24.04.2020 № 147-ФЗ (изм.)</option><option value='132,102090643'  class='blue'>132 - от 13.07.2020 № 202-ФЗ (изм.)</option><option value='133,102090643'  class='blue'>133 - от 31.07.2020 № 254-ФЗ (изм.)</option><option value='134,102090643'  class='blue'>134 - от 31.07.2020 № 264-ФЗ (изм.)</option><option value='135,102090643'  class='blue'>135 - от 13.07.2020 № 194-ФЗ (изм.)</option><option value='136,102090643'  class='blue'>136 - от 27.06.2019  (изм.)</option><option value='137,102090643'  class='blue'>137 - от 08.12.2020 № 416-ФЗ (изм.)</option><option value='138,102090643'  class='blue'>138 - от 29.12.2020 № 468-ФЗ (изм.)</option><option value='139,102090643'  class='blue'>139 - от 30.12.2020 № 494-ФЗ (изм.)</option><option value='140,102090643'  class='blue'>140 - от 30.12.2020 № 505-ФЗ (изм.)</option><option value='141,102090643'  class='blue'>141 - от 27.12.2018 № 522-ФЗ (изм.)</option><option value='142,102090643'  class='blue'>142 - от 30.04.2021 № 120-ФЗ (изм.)</option><option value='143,102090643'  class='blue'>143 - от 11.06.2021 № 170-ФЗ (изм.)</option><option value='144,102090643'  class='blue'>144 - от 11.06.2021 № 191-ФЗ (изм.)</option><option value='145,102090643'  class='blue'>145 - от 02.07.2021 № 298-ФЗ (изм.)</option><option value='146,102090643'  class='blue'>146 - от 01.07.2021 № 275-ФЗ (изм.)</option><option value='147,102090643'  class='blue'>147 - от 01.07.2021  (изм.)</option><option value='148,102090643'  class='blue'>148 - от 01.07.2021 № 276-ФЗ (изм.)</option><option value='149,102090643'  class='blue'>149 - от 01.07.2021  (изм.)</option><option value='150,102090643'  class='blue'>150 - от 06.12.2021 № 408-ФЗ (изм.)</option><option value='151,102090643'  class='blue'>151 - от 30.12.2021 № 447-ФЗ (изм.)</option><option value='152,102090643'  class='blue'>152 - от 30.04.2021 № 119-ФЗ (изм.)</option><option value='153,102090643'  class='blue'>153 - от 30.12.2021 № 436-ФЗ (изм.)</option><option value='154,102090643'  class='blue'>154 - от 02.07.2021 № 301-ФЗ (изм.)</option><option value='155,102090643'  class='blue'>155 - от 30.12.2021 № 476-ФЗ (изм.)</option><option value='156,102090643'  class='blue'>156 - от 01.05.2022 № 124-ФЗ (изм.)</option><option value='157,102090643'  class='blue'>157 - от 14.07.2022 № 312-ФЗ (изм.)</option><option value='158,102090643'  class='blue'>158 - от 14.07.2022 № 350-ФЗ (изм.)</option><option value='159,102090643'  class='blue'>159 - от 11.06.2021  (изм.)</option><option value='160,102090643'  class='blue'>160 - от 06.12.2021  (изм.)</option><option value='161,102090643'  class='blue'>161 - от 30.12.2021  (изм.)</option><option value='162,102090643'  class='blue'>162 - от 27.06.2019  (изм.)</option><option value='163,102090643'  class='blue'>163 - от 19.12.2022 № 541-ФЗ (изм.)</option><option value='164,102090643'  class='blue'>164 - от 19.12.2022 № 542-ФЗ (изм.)</option><option value='165,102090643'  class='blue'>165 - от 11.06.2022 № 174-ФЗ (изм.)</option><option value='166,102090643'  class='blue'>166 - от 14.07.2022 № 271-ФЗ (изм.)</option><option value='167,102090643'  class='blue'>167 - от 04.11.2022 № 427-ФЗ (изм.)</option><option value='168,102090643'  class='blue'>168 - от 29.12.2022 № 612-ФЗ (изм.)</option><option value='169,102090643'  class='blue'>169 - от 28.04.2023 № 150-ФЗ (изм.)</option><option value='170,102090643'  class='blue'>170 - от 13.06.2023 № 240-ФЗ (изм.)</option><option value='171,102090643'  class='blue'>171 - от 04.08.2023 № 438-ФЗ (изм.)</option><option value='172,102090643'  class='blue'>172 - от 04.08.2023 № 435-ФЗ (изм.)</option><option value='173,102090643'  class='blue'>173 - от 19.12.2022  (изм.)</option><option value='174,102090643'  class='blue'>174 - от 10.07.2023 № 305-ФЗ (изм.)</option><option value='175,102090643'  class='blue'>175 - от 04.08.2023 № 448-ФЗ (изм.)</option><option value='176,102090643'  class='blue'>176 - от 19.12.2023 № 613-ФЗ (изм.)</option><option value='177,102090643'  class='blue'>177 - от 29.12.2022  (изм.)</option><option value='178,102090643'  class='blue'>178 - от 19.10.2023 № 503-ФЗ (изм.)</option><option value='179,102090643'  class='blue'>179 - от 25.12.2023 № 627-ФЗ (изм.)</option><option value='180,102090643'  class='blue'>180 - от 04.08.2023  (изм.)</option><option value='181,102090643'  class='blue'>181 - от 12.12.2023 № 575-ФЗ (изм.)</option><option value='182,102090643'  class='blue'>182 - от 02.11.2023 № 509-ФЗ (изм.)</option><option value='183,102090643'  class='blue'>183 - от 08.08.2024 № 232-ФЗ (изм.)</option><option value='184,102090643'  class='blue'>184 - от 29.05.2023 № 191-ФЗ (изм.)</option><option value='185,102090643'  class='blue'>185 - от 04.08.2023 № 469-ФЗ (изм.)</option><option value='186,102090643'  class='blue'>186 - от 25.12.2023 № 622-ФЗ (изм.)</option><option value='187,102090643'  class='blue'>187 - от 25.12.2023 № 653-ФЗ (изм.)</option><option value='188,102090643'  class='blue'>188 - от 08.08.2024 № 238-ФЗ (изм.)</option><option value='189,102090643'  class='blue'>189 - от 08.08.2024 № 261-ФЗ (изм.)</option><option value='190,102090643'  class='blue'>190 - от 08.08.2024 № 280-ФЗ (изм.)</option><option value='191,102090643'  class='blue'>191 - от 26.12.2024 № 485-ФЗ (изм.)</option><option value='192,102090643'  class='blue'>192 - от 26.12.2024 № 487-ФЗ (изм.)</option><option value='193,102090643'  class='blue'>193 - от 26.12.2024 № 494-ФЗ (изм.)</option><option value='194,102090643'  class='blue'>194 - от 22.07.2024 № 187-ФЗ (изм.)</option><option value='195,102090643'  class='blue'>195 - от 26.12.2024 № 486-ФЗ (изм.)</option><option value='196,102090643'  class='blue'>196 - от 26.12.2024  (изм.)</option><option value='197,102090643'  class='blue'>197 - от 24.06.2025 № 181-ФЗ (изм.)</option><option value='198,102090643'  class='blue'>198 - от 31.07.2025 № 353-ФЗ (изм.)</option><option value='199,102090643'  class='blue'>199 - от 13.12.2024 № 475-ФЗ (изм.)</option><option value='200,102090643'  class='blue'>200 - от 28.12.2025 № 507-ФЗ (изм.)</option><option value='201,102090643'  class='blue'>201 - от 29.12.2025 № 579-ФЗ (изм.)</option><option value='202,102090643'  class='blue'>202 - от 30.01.2026 № 12-ФЗ (изм.)</option><option value='203,102090643'  class='blue'>203 - от 01.04.2025 № 52-ФЗ (изм.)</option><option value='204,102090643'  class='blue'>204 - от 31.07.2025 № 295-ФЗ (изм.)</option><option value='205,102090643'  class='blue'>205 - от 31.07.2025 № 304-ФЗ (изм.)</option><option value='206,102090643'  class='blue'>206 - от 31.07.2025 № 309-ФЗ (изм.)</option><option value='207,102090643'  selected class='blue'>207 - от 28.12.2025  (изм.)</option><option disabled  >от 29.12.2025 № 577-ФЗ (не готова)</option><option disabled  >от 23.03.2026 № 72-ФЗ (не готова)</option></select><input type="hidden" name="last_select_ed" value="" 	</td>
+	</tr>
+	</table>
+
+
+</div>
+</td>
+</tr>
+
+<tr>
+<td class="search_results">
+
+<div class="search_results_root">
+
+
+	<div class="doc_content_root">
+
+	<table class="doc_content">
+	<tr id="xdoc_toolbar">
+	<td class="doc_content_head">
+	<div style="position: relative; height: 34px">
+		<table class="block_head" style="position: absolute; top:0; left: 0">
+		<tr>
+		<td style="width: 100px;">
+<nobr>
+<img src="?pic_doctext.gif"
+	alt="Текст документа"
+	title="Текст документа"
+	class="pic"
+	onClick='window.location.replace("?docbody=&nd=102090643&rdk=&link_id=0")' /><img src="?pic_docinfo.gif"
+	alt="Сведения о документе"
+	title="Сведения о документе"
+	class="pic"
+	onClick='window.location.replace("?docbody=&vkart=card&nd=102090643&rdk=&link_id=0")' /><img src="?pic_links_forw.gif"
+	alt="Сведения о связях"
+	title="Сведения о связях"
+	class="pic"
+	onClick='window.location.replace("?docbody=&vkart=ref&page=1&nd=102090643&rdk=&link_id=0")' /><img src="?pic_links_back.gif" alt="Сведения об обратных связях"	title="Сведения об обратных связях"
+	class="pic"	onClick='window.location.replace("?docbody=&vkart=rvref&page=1&nd=102090643&rdk=&link_id=0")' /><!--a href="/"><img src="?pic_doccomment.gif" alt="Комментарий к документу" title="Комментарий к документу" class="pic" style="display:none;" /></a--><img src="?pic_print.gif" alt="Печать документа" title="Печать документа" class="pic_n" onclick="printSelected('?docview&page=1&print=1&nd=102090643&rdk=207&&empire=')"/><a href="?savertf=&link_id=0&nd=102090643&bpa=cd00000&bpas=cd00000&page=all"><img src="?pic_rtf.gif" alt="Экспорт документа в RTF" title="Экспорт документа в RTF" class="pic_n"/></a>
+	<img onclick="showSearchPanel();" src="?pic_doc_find.gif" alt="Поиск по тексту документа" title="Поиск по тексту документа" class="pic_n" />
+	<img src="?pic_add_to_set.gif" alt="Добавить в подборку" title="Добавить в подборку" class="pic" onClick="showSets('add', '102090643');">
+	<img src="?pic_add_bookmark.gif" alt="Добавить закладку" title="Добавить закладку" class="pic" onclick="showBookmarks('cd00000','', true);">
+	
+	</nobr></td>		<td id='dd_compare_td' style="width: 10px;" flag="0" onclick="showBlock('dd_compare');">
+	<div style="position: relative; z-index: 200;">
+	<img src="?pic_compare.gif" alt="Сравнить редакции" title="Сравнить редакции" class="pic">
+	</div>
+			</td>
+	
+	<td style="text-align: center;">&nbsp;</td>
+	<td class="pics">
+	<table class="clps" style="width: 100%;">
+		<tr>
+			<td style="width: 10px;" onMouseOver="showBlock('dd_style');" onMouseOut="killBlock('dd_style');">
+				<div style="position: relative; z-index: 200;">
+					<a href="javascript:;" ><img src="?pic_style.gif" alt="Изменить стиль оформления" title="Изменить стиль оформления" class="pic" /></a>
+
+				</div></td><td style="width: 10px;" onMouseOver="showBlock('dd_font');" onMouseOut="killBlock('dd_font');">
+				<div style="position: relative; z-index: 200;">
+				<a href="javascript:;" ><img src="?pic_text.gif" alt="Изменить размер шрифта" title="Изменить размер шрифта" class="pic" /></a>
+				</div>
+			</td>
+<!--
+<a href="javascript:;" onMouseOver="viewBlock('dropdown_style');" onMouseOut="hideBlock('dropdown_style');"><img src="images/pics/pic_style.gif" alt="Изменить стиль оформления" title="Изменить стиль оформления" class="pic_n" /></a>
+<a href="javascript:;" onMouseOver="viewBlock('dropdown_font');" onMouseOut="hideBlock('dropdown_font');"><img src="images/pics/pic_text.gif" alt="Изменить размер шрифта" title="Изменить размер шрифта" class="pic" /></a>
+-->
+			</tr>
+			</table>
+		</td>
+<!--		<td class="pics"><nobr><img src="?pic_style.gif" onMouseOver="viewBlock('dropdown_style');" onMouseOut="hideBlock('dropdown_style');" alt="Изменить стиль оформления" title="Изменить стиль оформления" class="pic_n" /><img src="?pic_text.gif" onMouseOver="viewBlock('dropdown_font');" onMouseOut="hideBlock('dropdown_font');" alt="Изменить размер шрифта" title="Изменить размер шрифта" class="pic" /></nobr></td> -->
+		</tr>
+		</table>
+		<br>
+		<br>
+
+	<!-- BEGIN новое окно поиска -->
+
+<style>
+.TSearch {
+   position: relative;
+   background-color: #f5f5f5;
+   border-bottom: 1px solid #969696;
+   border-top: 1px solid #fff;
+   width: 100%;
+}
+.CloseButton { position: absolute; top: 2px; right: 2px; }
+.TSearchForm { padding: 5px 40px 5px 10px; }
+.TSearch form, .TSearch table { width: 100%; margin: 0; }
+.TSearch input.string { width: 99%; }
+.TSearch select { float: left; margin-right: 20px; }
+.TSearch .params { float: left; white-space: nowrap; }
+
+.no_text_found {
+	color: white;
+	background-color: red;
+}
+
+.normal_state {
+	color: black;
+	background-color: white;
+}
+
+</style>
+
+<script language="javascript">
+
+	function closeECP(iscount) {
+		var ecpName = 'infostrdsign';
+		var contentsName = 'infostrcontents';
+		var redactionName = 'infostr0';
+		var countMessage = 0;
+		if(document.getElementById(contentsName)) {
+			if(document.getElementById(contentsName).style.display == '')
+				countMessage++;
+		}
+		if(document.getElementById(ecpName)) {
+			if(document.getElementById(ecpName).style.display == '')
+				countMessage++;
+		}
+		if(document.getElementById(redactionName)) {
+			if(document.getElementById(redactionName).style.display == '')
+				countMessage++;
+		}
+		var temp = "infostr"+iscount;
+		document.getElementById(temp).style.display='none';
+		if(countMessage == 3) {
+			if(document.getElementById(contentsName)) {
+				if(document.getElementById(contentsName).style.display == '') {
+					document.getElementById('xdoc_toolbar').style.height='120px';
+				} else {
+					document.getElementById('xdoc_toolbar').style.height='100px';
+				}
+			} else {
+				document.getElementById('xdoc_toolbar').style.height='100px';
+			}
+		} else if(countMessage == 2) {
+			if(document.getElementById(contentsName)) {
+				if(document.getElementById(contentsName).style.display == '') {
+					document.getElementById('xdoc_toolbar').style.height='90px';
+				} else {
+					document.getElementById('xdoc_toolbar').style.height='70px';
+				}
+			} else {
+				document.getElementById('xdoc_toolbar').style.height='70px';
+			}
+		} else if(countMessage == 1) {
+			document.getElementById('xdoc_toolbar').style.height='35px';
+		}
+	}
+
+	function setNoTextFoundSignal() {
+		var elem = document.getElementById('find_str');
+		elem.className = 'string no_text_found';
+	}
+	
+	function clearNoTextFoundSignal() {
+		var elem = document.getElementById('find_str');
+		elem.className = 'string normal_state';
+	}
+	
+	function getFocus(param) {
+		var obj = document.getElementById(param);
+		obj.focus();
+	}
+
+	var findValue;
+	function subQuerySearch (query, e) {
+		if (null == e)
+			return false;
+		var code = e.keyCode ? e.keyCode : window.event.keyCode; 
+		if (13 == code) {
+			if(findValue== '' || null == findValue){
+				findValue = document.getElementById('find_str').value;
+				var result = window.findParentText(window, true);
+				if (null != result) {
+					setNoTextFoundSignal();
+					return false;
+				} else {
+					document.getElementById('find_from').value = 0;
+					clearNoTextFoundSignal();
+					return true;
+				}
+			} else {
+				document.getElementById('find_from').value = 0;
+				find(true, true);
+				return false;
+			}
+		} else {
+			findValue = '';
+			document.getElementById('find_from').value = 1;
+		}
+		return false;
+	}
+
+	function find(subQuery, findDirect) {
+		var fromParam;
+		var toParam;
+		if(findDirect) {
+			toParam = 0;
+			fromParam = 1;
+		} else {
+			toParam = 1;
+			fromParam = 2;
+		}
+		document.getElementById('find_to').selectedIndex = toParam;
+		if (subQuery == null) 
+			subQuery = false;
+		var res = window.findParentText(window, subQuery);
+		if (null != res) {
+			if (fromParam == document.getElementById('find_from').value) {
+				setNoTextFoundSignal();
+				return false;
+			}
+			document.getElementById('find_from').value = fromParam;
+			res = window.findParentText(window, subQuery);
+			if (null != res) {
+				setNoTextFoundSignal();
+				return false;
+			} else if (subQuery) {
+				document.getElementById('find_from').value = 0;
+				clearNoTextFoundSignal();
+				return true;
+			}
+		}
+		document.getElementById('find_from').value = 0;
+		clearNoTextFoundSignal();
+		return false;
+	}
+	
+	function onDocRefsLoaded() {
+		var indicator = document.getElementById('progress_indicator');
+		if (indicator != null)
+			indicator.style.display = 'none';
+	}
+	
+</script>
+
+<div class="TSearch" id="window_find" style="display:none;">
+
+	<div class="CloseButton"><a href="javascript:void(0)" onclick="killBlock('window_find'); return false;"><img src="?but_close.gif" alt="Закрыть" /></a></div>
+
+	<div class="TSearchForm">
+<form method="post" action="" onsubmit="return false;">
+<table>
+<tr>
+<td>Найти:</td>
+<td style="width: 99%;"><input type="text" id="find_str" class="string" onkeydown="if(subQuerySearch(this,event)) clearNoTextFoundSignal(); "/></td>
+<td>
+
+<nobr>
+<a href="javascript:void(0)" onclick="find(true, true); return false;"><img src="?pic_next.gif" alt="Следующее вхождение" title="Следующее вхождение" /></a>
+<a href="javascript:void(0)" onclick="find(true, false); return false;"><img src="?pic_prev.gif" alt="Предыдущее вхождение" title="Предыдущее вхождение" /></a>
+<!-- <a href="javascript:void(0)"><img src="?pic_markall.gif" alt="Подсветить все" title="Подсветить все" style="margin-left: 10px;" /></a> -->
+</nobr>
+</td>
+</tr>
+<tr>
+<td>&nbsp;</td>
+<td colspan="2">
+
+<input type="hidden" name="" value="0" id="find_from" />
+
+<select id="find_to" style="display: none">
+<option>Вниз по тексту</option>
+<option>Вверх по тексту</option>
+</select>
+
+<div class="params">
+<input type="checkbox" name="" value="" id="find_exact" /> Слово целиком <wbr />
+<input type="checkbox" name="" value="" id="find_consider_caps" /> Учитывать регистр
+</div>
+
+</td>
+</tr>
+</table>
+</form>
+	</div>
+</div>
+
+	
+	
+	
+	<!-- BEGIN выпадающее меню сравнения редакций -->
+		<div id="dd_compare" style="display: none; position: absolute; left: 372px; top: 28px; height: 100%;">
+
+			<table class="clps" style="width: 200px; height: 200px;">
+				<tbody>
+					<tr>
+						<td>
+							<div style="z-index: 2000; position: relative; top: 0pt; height: 100%; width: 100%;">
+								<table class="clps window_fade">
+									<tr>
+										<td class="window_fade">
+											<div style="position: relative; height: 100%;">
+												<table class="clps window" style="background-color: rgb(255, 255, 255);">
+													<tr>
+														<td>
+															<table class="dd_data" style="width: 100%;">
+																<tr>
+																	<td class="head"><span class="tiny bold">Сравнение редакций</span></td>
+																</tr>
+																<tr>
+																	<td class="elements">
+																		<div class="dd_desc">
+																			<span class="tiny">Выберите две редакции документа для&nbsp;сравнения:</span>
+																		</div>
+																		<table class="c_editions" id="c_editions">
+		
+																			<tr>
+																				<td class="ch">
+																					<select id="red1">
+		<option id="s1o0" value="0">Исходная редакция</option><option id="s1o1" value="1">1 - от 22.07.2005 № 117-ФЗ (изм.)</option><option id="s1o2" value="2">2 - от 31.12.2005 № 199-ФЗ (изм.)</option><option id="s1o3" value="3">3 - от 31.12.2005 № 210-ФЗ (изм.)</option><option id="s1o4" value="4">4 - от 03.06.2006 № 73-ФЗ (изм.)</option><option id="s1o5" value="5">5 - от 27.07.2006 № 143-ФЗ (изм.)</option><option id="s1o6" value="6">6 - от 04.12.2006 № 201-ФЗ (изм.)</option><option id="s1o7" value="7">7 - от 18.12.2006 № 232-ФЗ (изм.)</option><option id="s1o8" value="8">8 - от 29.12.2006 № 258-ФЗ (изм.)</option><option id="s1o9" value="9">9 - от 10.05.2007 № 69-ФЗ (изм.)</option><option id="s1o10" value="10">10 - от 24.07.2007 № 215-ФЗ (изм.)</option><option id="s1o11" value="11">11 - от 30.10.2007 № 240-ФЗ (изм.)</option><option id="s1o12" value="12">12 - от 08.11.2007 № 257-ФЗ (изм.)</option><option id="s1o13" value="13">13 - от 04.12.2007 № 324-ФЗ (изм.)</option><option id="s1o14" value="14">14 - от 13.05.2008 № 66-ФЗ (изм.)</option><option id="s1o15" value="15">15 - от 16.05.2008 № 75-ФЗ (изм.)</option><option id="s1o16" value="16">16 - от 14.07.2008 № 118-ФЗ (изм.)</option><option id="s1o17" value="17">17 - от 22.07.2008 № 148-ФЗ (изм.)</option><option id="s1o18" value="18">18 - от 23.07.2008 № 160-ФЗ (изм.)</option><option id="s1o19" value="19">19 - от 25.12.2008 № 281-ФЗ (изм.)</option><option id="s1o20" value="20">20 - от 30.12.2008 № 309-ФЗ (изм.)</option><option id="s1o21" value="21">21 - от 17.07.2009 № 164-ФЗ (изм.)</option><option id="s1o22" value="22">22 - от 23.11.2009 № 261-ФЗ (изм.)</option><option id="s1o23" value="23">23 - от 27.12.2009 № 343-ФЗ (изм.)</option><option id="s1o121" value="121">121 - от 03.08.2018  (изм.)</option><option id="s1o122" value="122">122 - от 27.06.2019 № 151-ФЗ (изм.)</option><option id="s1o123" value="123">123 - от 03.08.2018  (изм.)</option><option id="s1o124" value="124">124 - от 27.12.2018 № 538-ФЗ (изм.)</option><option id="s1o125" value="125">125 - от 02.08.2019 № 283-ФЗ (изм.)</option><option id="s1o126" value="126">126 - от 02.08.2019 № 294-ФЗ (изм.)</option><option id="s1o127" value="127">127 - от 26.07.2019 № 195-ФЗ (изм.)</option><option id="s1o128" value="128">128 - от 16.12.2019 № 440-ФЗ (изм.)</option><option id="s1o129" value="129">129 - от 27.06.2019  (изм.)</option><option id="s1o130" value="130">130 - от 27.12.2019 № 472-ФЗ (изм.)</option><option id="s1o131" value="131">131 - от 24.04.2020 № 147-ФЗ (изм.)</option><option id="s1o132" value="132">132 - от 13.07.2020 № 202-ФЗ (изм.)</option><option id="s1o133" value="133">133 - от 31.07.2020 № 254-ФЗ (изм.)</option><option id="s1o134" value="134">134 - от 31.07.2020 № 264-ФЗ (изм.)</option><option id="s1o135" value="135">135 - от 13.07.2020 № 194-ФЗ (изм.)</option><option id="s1o136" value="136">136 - от 27.06.2019  (изм.)</option><option id="s1o137" value="137">137 - от 08.12.2020 № 416-ФЗ (изм.)</option><option id="s1o138" value="138">138 - от 29.12.2020 № 468-ФЗ (изм.)</option><option id="s1o139" value="139">139 - от 30.12.2020 № 494-ФЗ (изм.)</option><option id="s1o140" value="140">140 - от 30.12.2020 № 505-ФЗ (изм.)</option><option id="s1o141" value="141">141 - от 27.12.2018 № 522-ФЗ (изм.)</option><option id="s1o142" value="142">142 - от 30.04.2021 № 120-ФЗ (изм.)</option><option id="s1o143" value="143">143 - от 11.06.2021 № 170-ФЗ (изм.)</option><option id="s1o144" value="144">144 - от 11.06.2021 № 191-ФЗ (изм.)</option><option id="s1o145" value="145">145 - от 02.07.2021 № 298-ФЗ (изм.)</option><option id="s1o146" value="146">146 - от 01.07.2021 № 275-ФЗ (изм.)</option><option id="s1o147" value="147">147 - от 01.07.2021  (изм.)</option><option id="s1o148" value="148">148 - от 01.07.2021 № 276-ФЗ (изм.)</option><option id="s1o149" value="149">149 - от 01.07.2021  (изм.)</option><option id="s1o150" value="150">150 - от 06.12.2021 № 408-ФЗ (изм.)</option><option id="s1o151" value="151">151 - от 30.12.2021 № 447-ФЗ (изм.)</option><option id="s1o152" value="152">152 - от 30.04.2021 № 119-ФЗ (изм.)</option><option id="s1o153" value="153">153 - от 30.12.2021 № 436-ФЗ (изм.)</option><option id="s1o154" value="154">154 - от 02.07.2021 № 301-ФЗ (изм.)</option><option id="s1o155" value="155">155 - от 30.12.2021 № 476-ФЗ (изм.)</option><option id="s1o156" value="156">156 - от 01.05.2022 № 124-ФЗ (изм.)</option><option id="s1o157" value="157">157 - от 14.07.2022 № 312-ФЗ (изм.)</option><option id="s1o158" value="158">158 - от 14.07.2022 № 350-ФЗ (изм.)</option><option id="s1o159" value="159">159 - от 11.06.2021  (изм.)</option><option id="s1o160" value="160">160 - от 06.12.2021  (изм.)</option><option id="s1o161" value="161">161 - от 30.12.2021  (изм.)</option><option id="s1o162" value="162">162 - от 27.06.2019  (изм.)</option><option id="s1o163" value="163">163 - от 19.12.2022 № 541-ФЗ (изм.)</option><option id="s1o164" value="164">164 - от 19.12.2022 № 542-ФЗ (изм.)</option><option id="s1o165" value="165">165 - от 11.06.2022 № 174-ФЗ (изм.)</option><option id="s1o166" value="166">166 - от 14.07.2022 № 271-ФЗ (изм.)</option><option id="s1o167" value="167">167 - от 04.11.2022 № 427-ФЗ (изм.)</option><option id="s1o168" value="168">168 - от 29.12.2022 № 612-ФЗ (изм.)</option><option id="s1o169" value="169">169 - от 28.04.2023 № 150-ФЗ (изм.)</option><option id="s1o170" value="170">170 - от 13.06.2023 № 240-ФЗ (изм.)</option><option id="s1o171" value="171">171 - от 04.08.2023 № 438-ФЗ (изм.)</option><option id="s1o172" value="172">172 - от 04.08.2023 № 435-ФЗ (изм.)</option><option id="s1o173" value="173">173 - от 19.12.2022  (изм.)</option><option id="s1o174" value="174">174 - от 10.07.2023 № 305-ФЗ (изм.)</option><option id="s1o175" value="175">175 - от 04.08.2023 № 448-ФЗ (изм.)</option><option id="s1o176" value="176">176 - от 19.12.2023 № 613-ФЗ (изм.)</option><option id="s1o177" value="177">177 - от 29.12.2022  (изм.)</option><option id="s1o178" value="178">178 - от 19.10.2023 № 503-ФЗ (изм.)</option><option id="s1o179" value="179">179 - от 25.12.2023 № 627-ФЗ (изм.)</option><option id="s1o180" value="180">180 - от 04.08.2023  (изм.)</option><option id="s1o181" value="181">181 - от 12.12.2023 № 575-ФЗ (изм.)</option><option id="s1o182" value="182">182 - от 02.11.2023 № 509-ФЗ (изм.)</option><option id="s1o183" value="183">183 - от 08.08.2024 № 232-ФЗ (изм.)</option><option id="s1o184" value="184">184 - от 29.05.2023 № 191-ФЗ (изм.)</option><option id="s1o185" value="185">185 - от 04.08.2023 № 469-ФЗ (изм.)</option><option id="s1o186" value="186">186 - от 25.12.2023 № 622-ФЗ (изм.)</option><option id="s1o187" value="187">187 - от 25.12.2023 № 653-ФЗ (изм.)</option><option id="s1o188" value="188">188 - от 08.08.2024 № 238-ФЗ (изм.)</option><option id="s1o189" value="189">189 - от 08.08.2024 № 261-ФЗ (изм.)</option><option id="s1o190" value="190">190 - от 08.08.2024 № 280-ФЗ (изм.)</option><option id="s1o191" value="191">191 - от 26.12.2024 № 485-ФЗ (изм.)</option><option id="s1o192" value="192">192 - от 26.12.2024 № 487-ФЗ (изм.)</option><option id="s1o193" value="193">193 - от 26.12.2024 № 494-ФЗ (изм.)</option><option id="s1o194" value="194">194 - от 22.07.2024 № 187-ФЗ (изм.)</option><option id="s1o195" value="195">195 - от 26.12.2024 № 486-ФЗ (изм.)</option><option id="s1o196" value="196">196 - от 26.12.2024  (изм.)</option><option id="s1o197" value="197">197 - от 24.06.2025 № 181-ФЗ (изм.)</option><option id="s1o198" value="198">198 - от 31.07.2025 № 353-ФЗ (изм.)</option><option id="s1o199" value="199">199 - от 13.12.2024 № 475-ФЗ (изм.)</option><option id="s1o200" value="200">200 - от 28.12.2025 № 507-ФЗ (изм.)</option><option id="s1o201" value="201">201 - от 29.12.2025 № 579-ФЗ (изм.)</option><option id="s1o202" value="202">202 - от 30.01.2026 № 12-ФЗ (изм.)</option><option id="s1o203" value="203">203 - от 01.04.2025 № 52-ФЗ (изм.)</option><option id="s1o204" value="204">204 - от 31.07.2025 № 295-ФЗ (изм.)</option><option id="s1o205" value="205">205 - от 31.07.2025 № 304-ФЗ (изм.)</option><option id="s1o206" value="206">206 - от 31.07.2025 № 309-ФЗ (изм.)</option><option id="s1o207" value="207">207 - от 28.12.2025  (изм.)</option>																			</select>
+																				</td>
+																			</tr>
+																			<tr>
+																				<td class="ch">
+																					<select id="red2">
+		<option id="s1o0" value="0">Исходная редакция</option><option id="s1o1" value="1">1 - от 22.07.2005 № 117-ФЗ (изм.)</option><option id="s1o2" value="2">2 - от 31.12.2005 № 199-ФЗ (изм.)</option><option id="s1o3" value="3">3 - от 31.12.2005 № 210-ФЗ (изм.)</option><option id="s1o4" value="4">4 - от 03.06.2006 № 73-ФЗ (изм.)</option><option id="s1o5" value="5">5 - от 27.07.2006 № 143-ФЗ (изм.)</option><option id="s1o6" value="6">6 - от 04.12.2006 № 201-ФЗ (изм.)</option><option id="s1o7" value="7">7 - от 18.12.2006 № 232-ФЗ (изм.)</option><option id="s1o8" value="8">8 - от 29.12.2006 № 258-ФЗ (изм.)</option><option id="s1o9" value="9">9 - от 10.05.2007 № 69-ФЗ (изм.)</option><option id="s1o10" value="10">10 - от 24.07.2007 № 215-ФЗ (изм.)</option><option id="s1o11" value="11">11 - от 30.10.2007 № 240-ФЗ (изм.)</option><option id="s1o12" value="12">12 - от 08.11.2007 № 257-ФЗ (изм.)</option><option id="s1o13" value="13">13 - от 04.12.2007 № 324-ФЗ (изм.)</option><option id="s1o14" value="14">14 - от 13.05.2008 № 66-ФЗ (изм.)</option><option id="s1o15" value="15">15 - от 16.05.2008 № 75-ФЗ (изм.)</option><option id="s1o16" value="16">16 - от 14.07.2008 № 118-ФЗ (изм.)</option><option id="s1o17" value="17">17 - от 22.07.2008 № 148-ФЗ (изм.)</option><option id="s1o18" value="18">18 - от 23.07.2008 № 160-ФЗ (изм.)</option><option id="s1o19" value="19">19 - от 25.12.2008 № 281-ФЗ (изм.)</option><option id="s1o20" value="20">20 - от 30.12.2008 № 309-ФЗ (изм.)</option><option id="s1o21" value="21">21 - от 17.07.2009 № 164-ФЗ (изм.)</option><option id="s1o22" value="22">22 - от 23.11.2009 № 261-ФЗ (изм.)</option><option id="s1o23" value="23">23 - от 27.12.2009 № 343-ФЗ (изм.)</option><option id="s1o121" value="121">121 - от 03.08.2018  (изм.)</option><option id="s1o122" value="122">122 - от 27.06.2019 № 151-ФЗ (изм.)</option><option id="s1o123" value="123">123 - от 03.08.2018  (изм.)</option><option id="s1o124" value="124">124 - от 27.12.2018 № 538-ФЗ (изм.)</option><option id="s1o125" value="125">125 - от 02.08.2019 № 283-ФЗ (изм.)</option><option id="s1o126" value="126">126 - от 02.08.2019 № 294-ФЗ (изм.)</option><option id="s1o127" value="127">127 - от 26.07.2019 № 195-ФЗ (изм.)</option><option id="s1o128" value="128">128 - от 16.12.2019 № 440-ФЗ (изм.)</option><option id="s1o129" value="129">129 - от 27.06.2019  (изм.)</option><option id="s1o130" value="130">130 - от 27.12.2019 № 472-ФЗ (изм.)</option><option id="s1o131" value="131">131 - от 24.04.2020 № 147-ФЗ (изм.)</option><option id="s1o132" value="132">132 - от 13.07.2020 № 202-ФЗ (изм.)</option><option id="s1o133" value="133">133 - от 31.07.2020 № 254-ФЗ (изм.)</option><option id="s1o134" value="134">134 - от 31.07.2020 № 264-ФЗ (изм.)</option><option id="s1o135" value="135">135 - от 13.07.2020 № 194-ФЗ (изм.)</option><option id="s1o136" value="136">136 - от 27.06.2019  (изм.)</option><option id="s1o137" value="137">137 - от 08.12.2020 № 416-ФЗ (изм.)</option><option id="s1o138" value="138">138 - от 29.12.2020 № 468-ФЗ (изм.)</option><option id="s1o139" value="139">139 - от 30.12.2020 № 494-ФЗ (изм.)</option><option id="s1o140" value="140">140 - от 30.12.2020 № 505-ФЗ (изм.)</option><option id="s1o141" value="141">141 - от 27.12.2018 № 522-ФЗ (изм.)</option><option id="s1o142" value="142">142 - от 30.04.2021 № 120-ФЗ (изм.)</option><option id="s1o143" value="143">143 - от 11.06.2021 № 170-ФЗ (изм.)</option><option id="s1o144" value="144">144 - от 11.06.2021 № 191-ФЗ (изм.)</option><option id="s1o145" value="145">145 - от 02.07.2021 № 298-ФЗ (изм.)</option><option id="s1o146" value="146">146 - от 01.07.2021 № 275-ФЗ (изм.)</option><option id="s1o147" value="147">147 - от 01.07.2021  (изм.)</option><option id="s1o148" value="148">148 - от 01.07.2021 № 276-ФЗ (изм.)</option><option id="s1o149" value="149">149 - от 01.07.2021  (изм.)</option><option id="s1o150" value="150">150 - от 06.12.2021 № 408-ФЗ (изм.)</option><option id="s1o151" value="151">151 - от 30.12.2021 № 447-ФЗ (изм.)</option><option id="s1o152" value="152">152 - от 30.04.2021 № 119-ФЗ (изм.)</option><option id="s1o153" value="153">153 - от 30.12.2021 № 436-ФЗ (изм.)</option><option id="s1o154" value="154">154 - от 02.07.2021 № 301-ФЗ (изм.)</option><option id="s1o155" value="155">155 - от 30.12.2021 № 476-ФЗ (изм.)</option><option id="s1o156" value="156">156 - от 01.05.2022 № 124-ФЗ (изм.)</option><option id="s1o157" value="157">157 - от 14.07.2022 № 312-ФЗ (изм.)</option><option id="s1o158" value="158">158 - от 14.07.2022 № 350-ФЗ (изм.)</option><option id="s1o159" value="159">159 - от 11.06.2021  (изм.)</option><option id="s1o160" value="160">160 - от 06.12.2021  (изм.)</option><option id="s1o161" value="161">161 - от 30.12.2021  (изм.)</option><option id="s1o162" value="162">162 - от 27.06.2019  (изм.)</option><option id="s1o163" value="163">163 - от 19.12.2022 № 541-ФЗ (изм.)</option><option id="s1o164" value="164">164 - от 19.12.2022 № 542-ФЗ (изм.)</option><option id="s1o165" value="165">165 - от 11.06.2022 № 174-ФЗ (изм.)</option><option id="s1o166" value="166">166 - от 14.07.2022 № 271-ФЗ (изм.)</option><option id="s1o167" value="167">167 - от 04.11.2022 № 427-ФЗ (изм.)</option><option id="s1o168" value="168">168 - от 29.12.2022 № 612-ФЗ (изм.)</option><option id="s1o169" value="169">169 - от 28.04.2023 № 150-ФЗ (изм.)</option><option id="s1o170" value="170">170 - от 13.06.2023 № 240-ФЗ (изм.)</option><option id="s1o171" value="171">171 - от 04.08.2023 № 438-ФЗ (изм.)</option><option id="s1o172" value="172">172 - от 04.08.2023 № 435-ФЗ (изм.)</option><option id="s1o173" value="173">173 - от 19.12.2022  (изм.)</option><option id="s1o174" value="174">174 - от 10.07.2023 № 305-ФЗ (изм.)</option><option id="s1o175" value="175">175 - от 04.08.2023 № 448-ФЗ (изм.)</option><option id="s1o176" value="176">176 - от 19.12.2023 № 613-ФЗ (изм.)</option><option id="s1o177" value="177">177 - от 29.12.2022  (изм.)</option><option id="s1o178" value="178">178 - от 19.10.2023 № 503-ФЗ (изм.)</option><option id="s1o179" value="179">179 - от 25.12.2023 № 627-ФЗ (изм.)</option><option id="s1o180" value="180">180 - от 04.08.2023  (изм.)</option><option id="s1o181" value="181">181 - от 12.12.2023 № 575-ФЗ (изм.)</option><option id="s1o182" value="182">182 - от 02.11.2023 № 509-ФЗ (изм.)</option><option id="s1o183" value="183">183 - от 08.08.2024 № 232-ФЗ (изм.)</option><option id="s1o184" value="184">184 - от 29.05.2023 № 191-ФЗ (изм.)</option><option id="s1o185" value="185">185 - от 04.08.2023 № 469-ФЗ (изм.)</option><option id="s1o186" value="186">186 - от 25.12.2023 № 622-ФЗ (изм.)</option><option id="s1o187" value="187">187 - от 25.12.2023 № 653-ФЗ (изм.)</option><option id="s1o188" value="188">188 - от 08.08.2024 № 238-ФЗ (изм.)</option><option id="s1o189" value="189">189 - от 08.08.2024 № 261-ФЗ (изм.)</option><option id="s1o190" value="190">190 - от 08.08.2024 № 280-ФЗ (изм.)</option><option id="s1o191" value="191">191 - от 26.12.2024 № 485-ФЗ (изм.)</option><option id="s1o192" value="192">192 - от 26.12.2024 № 487-ФЗ (изм.)</option><option id="s1o193" value="193">193 - от 26.12.2024 № 494-ФЗ (изм.)</option><option id="s1o194" value="194">194 - от 22.07.2024 № 187-ФЗ (изм.)</option><option id="s1o195" value="195">195 - от 26.12.2024 № 486-ФЗ (изм.)</option><option id="s1o196" value="196">196 - от 26.12.2024  (изм.)</option><option id="s1o197" value="197">197 - от 24.06.2025 № 181-ФЗ (изм.)</option><option id="s1o198" value="198">198 - от 31.07.2025 № 353-ФЗ (изм.)</option><option id="s1o199" value="199">199 - от 13.12.2024 № 475-ФЗ (изм.)</option><option id="s1o200" value="200">200 - от 28.12.2025 № 507-ФЗ (изм.)</option><option id="s1o201" value="201">201 - от 29.12.2025 № 579-ФЗ (изм.)</option><option id="s1o202" value="202">202 - от 30.01.2026 № 12-ФЗ (изм.)</option><option id="s1o203" value="203">203 - от 01.04.2025 № 52-ФЗ (изм.)</option><option id="s1o204" value="204">204 - от 31.07.2025 № 295-ФЗ (изм.)</option><option id="s1o205" value="205">205 - от 31.07.2025 № 304-ФЗ (изм.)</option><option id="s1o206" value="206">206 - от 31.07.2025 № 309-ФЗ (изм.)</option><option id="s1o207" value="207">207 - от 28.12.2025  (изм.)</option>
+																					</select>
+																				</td>
+																			</tr>
+																			<tr>
+																				<td colspan="2" style="padding: 0.5em; text-align: center;">
+																					<button class="bold" onclick="compareRed(102090643);">Сравнить</button>
+																					<button class="bold" onclick="killBlock('dd_compare');">Закрыть</button>
+																				</td>
+																			</tr>
+																		</table>
+																	</td>
+																</tr>
+															</table>
+														</td>
+													</tr>
+												</table>
+											</div>
+										</td>
+									</tr>
+								</table>
+							</div>
+
+							<div style="z-index: 1500; position: relative; top: -100%; height: 100%; width: 100%;">
+								<iframe src="blank.html" style="height: 100%; width: 100%;" frameborder="0" scrolling="no"></iframe>
+							</div>
+
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	
+	
+	
+	<!-- BEGIN выпадающее меню стиля оформления -->	
+					<div id="dd_style" flag="0" style="display: none; position: absolute; right: 21pt; top: 28px;" onMouseOver="showBlock('dd_style');" onMouseOut="killBlock('dd_style');">
+						<table class="clps" style="width: 195px; height: 20px;">
+							<tr>
+								<td>
+									<div style="z-index: 2000; position: relative; top: 0; height: 100%; width: 100%;">
+										<table class="clps window_fade">
+											<tr>
+												<td class="window_fade">
+													<div style="position:relative; height: 100%;">
+														<table class="clps window" style="background-color: #fff;">
+															<tr>
+																<td>
+																	<table class="dd_data">
+																		<tr>
+																			<td class="head"><span class="tiny bold">Оформление</span></td>
+																		</tr>
+																		<tr>
+																			<td class="elements">
+																				<div class="dd_desc">
+																					<span class="tiny">Выберите предпочитаемый стиль оформления текста документа:</span>
+																				</div>
+																				<div class="style_default" 
+	onClick="changeDocStyle('doc_content_bg_default');"
+	onMouseOver="this.style.borderWidth='1';this.style.borderStyle='solid';this.style.borderColor='#fff4b7';try{this.style.cursor='pointer'}catch(e){this.style.cursor='hand'};"
+	onMouseOut="this.style.borderWidth='1';this.style.borderStyle='solid';this.style.borderColor='#d9d9d9';this.style.cursor='';">Стандарт</div>
+																				<div class="style_bg_grey"
+	onClick="changeDocStyle('doc_content_bg_grey');"
+	onMouseOver="this.style.borderWidth='1';this.style.borderStyle='solid';this.style.borderColor='#fff4b7';try{this.style.cursor='pointer'}catch(e){this.style.cursor='hand'};"
+	onMouseOut="this.style.borderWidth='1';this.style.borderStyle='solid';this.style.borderColor='#d9d9d9';this.style.cursor='';">Черный текст на&nbsp;сером фоне</div>
+																				<div class="style_bg_black"
+	onClick="changeDocStyle('doc_content_bg_black')"
+	onMouseOver="this.style.borderWidth='1';this.style.borderStyle='solid';this.style.borderColor='#fff4b7';try{this.style.cursor='pointer'}catch(e){this.style.cursor='hand'};"
+	onMouseOut="this.style.borderWidth='1';this.style.borderStyle='solid';this.style.borderColor='#1f1f1f';this.style.cursor='';">Белый текст на&nbsp;черном фоне</div>
+																			</td>
+																		</tr>
+																	</table>
+																</td>
+															</tr>
+														</table>
+													</div>
+												</td>
+											</tr>
+										</table>
+									</div>
+									<div style="z-index: 1500; position: relative; top: -100%; height: 100%; width: 100%;">
+										<iframe frameborder="0" scrolling="no" src="about:blank" style="height: 100%; width: 100%; position:absolute"></iframe>
+									</div>
+								</td>
+							</tr>
+						</table>
+					</div>
+					
+	
+	
+	<!-- BEGIN выпадающее меню размера шрифта -->
+		<div id="dd_font" flag="0" style="display: none; position: absolute; right: 0; top: 28px;" onMouseOver="showBlock('dd_font');" onMouseOut="killBlock('dd_font');">
+
+		<table class="clps" style="width: 300px; height: 20px;">
+
+		<tr>
+		<td>
+				<div style="z-index: 2000; position: relative; top: 0; height: 100%; width: 100%;">
+					<table class="clps window_fade">
+					<tr>
+					<td class="window_fade">
+						<div style="position:relative; height: 100%;">
+							<table class="clps window" style="background-color: #fff;">
+							<tr>
+							<td>
+
+								<table class="dd_data">
+								<tr>
+								<td class="head"><span class="tiny bold">Размер шрифта</span></td>
+								</tr>
+								<tr>
+								<td class="elements">
+		<div class="dd_desc">
+		<span class="tiny">Выберите наиболее удобный для&nbsp;Вас размер шрифта:</span>
+		</div>
+		<div 
+			id="font_menu_t_tiny"
+			class="font" 
+			onClick="changeDocFont('t_tiny');" 
+			onMouseOver="this.style.borderColor='#fff4b7';try{this.style.cursor='pointer'}catch(e){this.style.cursor='hand'};" 
+			onMouseOut="this.style.borderColor='#ffffff';this.style.cursor='';">
+		<span class="t_tiny f_cn">Очень мелкий</span>
+		</div>
+		<div 
+			id="font_menu_t_small"
+			class="font"
+			onClick="changeDocFont('t_small');"
+			onMouseOver="this.style.borderColor='#fff4b7';try{this.style.cursor='pointer'}catch(e){this.style.cursor='hand'};"
+			onMouseOut="this.style.borderColor='#ffffff';this.style.cursor='';">
+		<span class="t_small f_cn">Мелкий</span>
+		</div>
+		<div
+			id="font_menu_t_normal"
+			class="font"
+			onClick="changeDocFont('t_normal');"
+			onMouseOver="this.style.borderColor='#fff4b7';try{this.style.cursor='pointer'}catch(e){this.style.cursor='hand'};"
+			onMouseOut="this.style.borderColor='#ffffff';this.style.cursor='';">
+		<span class="t_normal f_cn">Средний</span>
+		</div>
+		<div
+			id="font_menu_t_standart"
+			class="font_cur"
+			onClick="changeDocFont('t_standart');"
+			onMouseOver="this.style.borderColor='#fff4b7';try{this.style.cursor='pointer'}catch(e){this.style.cursor='hand'};"
+			onMouseOut="this.style.borderColor='#ffffff';this.style.cursor='';">
+		<span class="t_standart f_cn">Стандарт</span>
+		</div>
+		<div
+			id="font_menu_t_large"
+			class="font"
+			onClick="changeDocFont('t_large');"
+			onMouseOver="this.style.borderColor='#fff4b7';try{this.style.cursor='pointer'}catch(e){this.style.cursor='hand'};"
+			onMouseOut="this.style.borderColor='#ffffff';this.style.cursor='';">
+		<span class="t_large f_cn">Крупный</span>
+		</div>
+		<div
+			id="font_menu_t_huge"
+			class="font"
+			onClick="changeDocFont('t_huge');"
+			onMouseOver="this.style.borderColor='#fff4b7';try{this.style.cursor='pointer'}catch(e){this.style.cursor='hand'};"
+			onMouseOut="this.style.borderColor='#ffffff';this.style.cursor='';">
+		<span class="t_huge f_cn">Очень крупный</span>
+		</div>
+								</td>
+
+								</tr>
+								</table>
+							</td>
+							</tr>
+							</table>
+						</div>
+					</td>
+					</tr>
+					</table>
+
+			</div>
+
+			<div style="z-index: 1500; position: relative; top: -100%; height: 100%; width: 100%;">
+		<iframe frameborder="0" scrolling="no" src="about:blank" style="height: 100%; width: 100%; position:absolute"></iframe>
+			</div>
+
+		</td>
+		</tr>
+		</table>
+		</div>
+
+	
+	
+
+<style>
+	@media print {
+		.noprint {
+			display: none;
+		}
+	}
+</style>
+<div id="infostrdsign" style="background: #ccc; margin-top: 1px; display: none;" class="noprint">
+	<table ID="Table1">
+		<tr>
+			<td style="padding-top: 0.4em;">
+				<img src="?warnpic.gif" />
+			</td> 
+			<td style="width: 100%; font-weight: bold; padding-left: 0.2em;">
+				
+				 <style>
+	@media print {
+		.noprint {
+			display: none;
+		}
+	}
+	a.nounderline, a.nounderline:visited, a.tiny_nounderline, a.tiny_nounderline:visited { text-decoration:none; }
+	a.nounderline:hover, a.tiny_nounderline:hover { text-decoration:underline; }
+	.bold, .error, .tiny_bold, .tiny_italic_bold, .large_bold, .white_bold, .yellow_bold, .small_bold { font-weight:bold; }
+	img.pic_n { margin-right:1px; margin-left:5px; cursor: pointer; cursor: hand; }
+	table.clps { border-collapse:collapse; }
+	table.clps td { padding:0px; }
+	table.window_fade { width: 100%; background: url('?fade_end.gif') no-repeat top right; background-color: #777777; }
+	table.window_fade td.window_fade { background: url('?fade_end.gif') no-repeat bottom left; padding: 0 2px 2px 0; }
+	table.window { width: 100%; height: 100%; background-color: #f5f5f5; border: 1px solid #cdcdcd; }
+	table.dd_data td.head { background-color:#f5f5f5; padding: 3px 5px 5px 5px; text-align: center; }
+	div.dd_element { padding: 0 5px 1px 5px; margin: 4px 0; }
+	table.dd_data td.head { background-color:#f5f5f5; padding: 3px 5px 5px 5px; text-align: center; }
+	ul.dd_links { list-style-type: none; xwidth: 100%; margin: 0; padding: 0; }
+	ul.dd_links li { padding: 0; margin: 3px 0; cursor: pointer; cursor: hand; }
+	ul.dd_links li a { display: block; text-decoration: none; padding: 1px 6px 3px 6px; color: #1f1f1f; }
+	* html ul.dd_links li a, * html ul.dd_links li a:visited { /* make hover effect work in IE */ width: 100%; color: #1f1f1f; }
+	* html ul.dd_links li a:hover { color: #fff; }
+	ul.dd_links li a:hover { background-color: #122770; color: #fff; }
+	ul.dd_links a.current { background-color: #fff4b7; }
+</style>
+<table>
+<tr>
+
+<td style="text-align: center;"><nobr><span class="bold">Проверка ЭЦП: отсутствует подпись</span></nobr></td>
+
+</tr></table>
+				 
+			</td>
+			<td>
+				<img title="закрыть информационную панель" src="?pic_button_close.gif" style="cursor: hand;" onclick="closeECP('dsign'); delCookieSignStatus(); ">
+			</td>
+		</tr>
+	</table>
+</div>
+		
+	</td>
+	</tr>
+	<tr id="xdoc_content">
+	<td class="content">
+<!-- --------------------------------------------------------------------------------------- -->
+
+<!-- --------------------------------------------------------------- -->
+		<div id="progress_indicator" style="text-align: center;">
+			<img src="?spinner.gif" alt="" align="absmiddle" /> Загрузка документа 
+		</div>
+		<iframe id="list" frameborder="0" src="?doc_itself=&nd=102090643&page=1&rdk=207&link_id=0" onload="onDocRefsLoaded();"></iframe>
+
+	</td>
+	</tr>
+	<tr id="xdoc_footer">
+	<td class="doc_buttons" style="padding-bottom: 2px;">
+	<div style="position:relative; height: 25px">
+		<table style="position:absolute; top: 0; left: 0">
+		<tr>
+			<td class="but_link_back">
+				<nobr><img style="display: none;" id="backlink" class="pic" title="возврат по ссылке" alt="возврат по ссылке" src="?but_back2link.gif" onClick="window.history.back()"/></nobr>
+			</td>
+		<td>
+<nobr><button onclick="try{goToPrevDoc()}catch(e){}" class="docs_nav">&#8592; предыдущий документ</button>
+&nbsp;<button onclick="try{goToNextDoc()}catch(e){}" class="docs_nav">следующий документ &#8594;</button>
+</nobr>
+		</td>
+	</table>
+
+	</div>
+
+
+
+</div>
+
+
+</td>
+</tr>
+
+
+
+
+
+
+</table>
+</body>
+<script>
+
+var selected = -1;
+
+function goToContext(napr)
+{	
+	var ifr = document.getElementById('list');
+	var doc = ifr.contentDocument || ifr.contentWindow.document;
+	var spans = doc.getElementsByTagName("SPAN");
+	if (spans == null)
+		return;
+	
+	var i = (selected != -1 ? selected : 0) + napr;
+	var new_selected = -1;
+	while (i >= 0 && i < spans.length) {
+		if ((spans.item(i).className + "").indexOf('bookmark') != -1) {
+			new_selected = i;
+			break;
+		}
+		i += napr;
+	}
+	if (i < 0) {
+		if (!confirm("Это первое вхождение. Перейти на последнее?")) {
+			return;
+		}
+		i = spans.length - 1;
+	} else if (i >= spans.length) {
+		if ( !confirm("Это последнее вхождение. Перейти на первое?") ) {
+			return;
+		}
+		i = 0;
+	}
+	if (new_selected == -1) {
+		while (i >= 0 && i < spans.length) {
+			if ((spans.item(i).className + "").indexOf('bookmark') != -1) {
+				new_selected = i;
+				break;
+			}
+			i += napr;
+		}
+	}
+	if (new_selected != -1) {
+		if (selected != -1) spans.item(selected).className = 'bookmark';
+		spans.item(new_selected).className = 'searched_cur';
+		selected = new_selected;
+		spans.item(new_selected).scrollIntoView(false);
+	}
+	
+}
+</script>
+
+</html>

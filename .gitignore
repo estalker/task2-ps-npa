@@ -18,6 +18,7 @@ build/
 input/
 output/
 npa_downloader/npa_download
+npa_downloader/ps_download
 
 debug_extracted.txt
 

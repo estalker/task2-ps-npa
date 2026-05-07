@@ -17,6 +17,23 @@ python npa_downloader/download_npa.py
 
 Файлы сохраняются в `npa_downloader/npa_download/`, отчёт — `npa_downloader/download_report.jsonl`.
 
+### Источник `pravo.gov.ru`
+
+Если нужно искать прямо через `pravo.gov.ru/search/` (страница результатов формируется JavaScript’ом), используйте Playwright в “видимом” режиме:
+
+```powershell
+$env:NPA_HEADFUL="1"
+python npa_downloader\download_npa.py --engine pravo --timeout 60
+```
+
+### Список `ps_list.txt`
+
+Если нужно качать из `ps_list.txt` (в `ps_download/`):
+
+```powershell
+python npa_downloader\download_npa.py --kind ps --engine pravo --timeout 60
+```
+
 ### Повторить только упавшие
 
 Например, повторить только те, что упали на SSL/сертификатах:

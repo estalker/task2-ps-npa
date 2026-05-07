@@ -112,7 +112,10 @@ def try_extract_npa_with_llm(text: str) -> NpaLlmResult | None:
     try:
         data: Any = json.loads(raw)
     except Exception:
-        data = json.loads(_extract_first_json_object(raw))
+        try:
+            data = json.loads(_extract_first_json_object(raw))
+        except Exception:
+            return None
 
     if not isinstance(data, dict):
         return None
